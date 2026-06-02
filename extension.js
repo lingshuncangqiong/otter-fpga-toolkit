@@ -65,7 +65,7 @@ function activate(context) {
 
         // 例化列: .port (conn),   — conn内部对齐, ), 上下列齐
         const ipCol=padToTab(ipMaxN+2,tab)+tab;  // ( 起始列
-        const cpCol=padToTab(ipCol+ipMaxC+1,tab); // ) 对齐列
+        const cpCol=padToTab(ipCol+ipMaxC+2,tab); // ) 对齐列，+2确保至少1空格
 
         const edits=[];
         for(let i=s;i<=e;i++){

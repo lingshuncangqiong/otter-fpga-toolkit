@@ -77,7 +77,7 @@
     "signal_assignments": {
       "patterns": [
         { "name": "variable.other.readwrite", "match": "(?<=\\bassign\\s)\\w+(?=\\s*=)" },
-        { "name": "variable.other.readwrite", "match": "(?<=^|\\s)\\w+(?=\\s*<=)" }
+        { "name": "variable.other.readwrite", "match": "(?<=^\\s*)\\w+(?=\\s*<=)" }
       ]
     }
   }
