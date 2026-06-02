@@ -1,0 +1,57 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "CST (Gowin Physical Constraints)",
+  "scopeName": "source.cst",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#commands" },
+    { "include": "#properties" },
+    { "include": "#constraint_values" },
+    { "include": "#numbers" },
+    { "include": "#pins" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash", "match": "//.*$" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double", "begin": "\"", "end": "\"" }
+      ]
+    },
+    "commands": {
+      "patterns": [
+        { "name": "entity.name.tag",
+          "match": "\\b(IO_LOC|IO_PORT|INS_LOC|CLOCK_LOC|SYSCONFIG|PLL_RST_PIN)\\b"
+        }
+      ]
+    },
+    "properties": {
+      "patterns": [
+        { "name": "variable.parameter",
+          "match": "\\b(IO_TYPE|PULL_MODE|DRIVE|BANK_VCCIO|SLEW_RATE|PULL_STRENGTH|DIFF_RESISTOR|OPEN_DRAIN|HYSTERESIS|TERMINATION|DRIVE_STRENGTH|OUTPUT_ENABLE|INPUT_DELAY|OUTPUT_DELAY|ODT|IMPEDANCE|SSTL_CLASS|IBUF_DELAY|STEPPING)\\b"
+        }
+      ]
+    },
+    "constraint_values": {
+      "patterns": [
+        { "name": "string.unquoted",
+          "match": "\\b(LVCMOS12|LVCMOS15|LVCMOS18|LVCMOS25|LVCMOS25D|LVCMOS33|LVCMOS33D|LVTTL33|LVTTL33D|LVDS25|LVDS25E|RSDS|MINI_LVDS|BLVDS25|SSTL135|SSTL15|SSTL18_I|SSTL18_II|SSTL25_I|SSTL25_II|SSTL33_I|SSTL33_II|HSTL_I|HSTL_II|HSTL_I_18|HSTL_II_18|HSLVDCI15|HSLVDCI18|HSLVDCI25|HSLVDCI33|SLVS|HSUL12|NONE|UP|DOWN|KEEPER|FAST|SLOW|MEDIUM|STRONG|WEAK|ON|OFF|HIGH|LOW)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric", "match": "\\b\\d+\\.?\\d*\\b" }
+      ]
+    },
+    "pins": {
+      "patterns": [
+        { "name": "constant.numeric", "match": "\\b[A-R]\\d{1,2}\\b" }
+      ]
+    }
+  }
+}

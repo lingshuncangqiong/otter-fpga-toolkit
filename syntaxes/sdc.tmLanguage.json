@@ -1,0 +1,91 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SDC (Synopsys Design Constraints)",
+  "scopeName": "source.sdc",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#braces_content" },
+    { "include": "#brackets_content" },
+    { "include": "#commands" },
+    { "include": "#dotted_property" },
+    { "include": "#arguments" },
+    { "include": "#constants" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash", "match": "//.*$" },
+        { "name": "comment.line.number-sign", "match": "#.*$" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double", "begin": "\"", "end": "\"" }
+      ]
+    },
+    "braces_content": {
+      "patterns": [
+        {
+          "name": "meta.brace.curly",
+          "begin": "\\{",
+          "end": "\\}",
+          "patterns": [
+            { "include": "#strings" },
+            { "include": "#numbers" },
+            { "include": "#arguments" }
+          ]
+        }
+      ]
+    },
+    "brackets_content": {
+      "patterns": [
+        {
+          "name": "meta.bracket.square",
+          "begin": "\\[",
+          "end": "\\]",
+          "patterns": [
+            { "include": "#strings" },
+            { "include": "#braces_content" },
+            { "include": "#commands" },
+            { "include": "#arguments" }
+          ]
+        }
+      ]
+    },
+    "commands": {
+      "patterns": [
+        { "name": "entity.name.tag",
+          "match": "\\b(create_clock|create_generated_clock|set_clock_groups|set_input_delay|set_output_delay|set_clock_latency|set_clock_uncertainty|set_clock_transition|set_multicycle_path|set_false_path|set_max_delay|set_min_delay|set_drive|set_load|set_fanout_load|set_input_transition|set_output_load|set_wire_load|get_ports|get_clocks|get_nets|get_cells|get_pins|set_property|get_property|current_design|all_inputs|all_outputs|all_clocks|all_registers)\\b"
+        }
+      ]
+    },
+    "dotted_property": {
+      "patterns": [
+        { "name": "variable.other.member",
+          "match": "\\b\\w+(\\.\\w+)+\\b"
+        }
+      ]
+    },
+    "arguments": {
+      "patterns": [
+        { "name": "variable.parameter",
+          "match": "-\\b(name|period|waveform|clock|reference_pin|max|min|add|group|asynchronous|from|to|through|rise|fall|rise_from|fall_from|rise_to|fall_to|source|setup|hold|start|end|include_generated_clocks|clock_fall|dict|hier|filter|quiet|of_objects|master_clock|combinational|edges|edge_shift|duty_cycle|divide_by|multiply_by|source_latency_included|network_latency_included|pin)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        { "name": "string.unquoted",
+          "match": "\\b(TRUE|FALSE|true|false)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric", "match": "\\b\\d+\\.?\\d*\\b" }
+      ]
+    }
+  }
+}

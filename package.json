@@ -1,0 +1,218 @@
+{
+  "name": "otter-fpga-toolkit",
+  "displayName": "Otter FPGA Toolkit - 水獭FPGA工具集",
+  "description": "小水獭的FPGA开发利器：一键例化、代码排版、iverilog/xvlog语法检查、高亮、跳转、补全",
+  "icon": "icon.png",
+  "version": "2.1.0",
+  "publisher": "Otter-xiaoxiaoxuwang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lingshuncangqiong/otter-fpga-toolkit"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:verilog",
+    "onLanguage:systemverilog",
+    "onLanguage:sdc",
+    "onLanguage:xdc",
+    "onLanguage:cst"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "verilog",
+        "aliases": [
+          "Verilog",
+          "verilog"
+        ],
+        "extensions": [
+          ".v",
+          ".vh"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "systemverilog",
+        "aliases": [
+          "SystemVerilog",
+          "systemverilog"
+        ],
+        "extensions": [
+          ".sv",
+          ".svh"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "sdc",
+        "aliases": [
+          "SDC",
+          "sdc"
+        ],
+        "extensions": [
+          ".sdc"
+        ]
+      },
+      {
+        "id": "xdc",
+        "aliases": [
+          "XDC",
+          "xdc"
+        ],
+        "extensions": [
+          ".xdc"
+        ]
+      },
+      {
+        "id": "cst",
+        "aliases": [
+          "CST",
+          "cst"
+        ],
+        "extensions": [
+          ".cst"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "verilog",
+        "scopeName": "source.verilog",
+        "path": "./syntaxes/verilog.tmLanguage.json"
+      },
+      {
+        "language": "systemverilog",
+        "scopeName": "source.systemverilog",
+        "path": "./syntaxes/systemverilog.tmLanguage.json"
+      },
+      {
+        "language": "sdc",
+        "scopeName": "source.sdc",
+        "path": "./syntaxes/sdc.tmLanguage.json"
+      },
+      {
+        "language": "xdc",
+        "scopeName": "source.xdc",
+        "path": "./syntaxes/xdc.tmLanguage.json"
+      },
+      {
+        "language": "cst",
+        "scopeName": "source.cst",
+        "path": "./syntaxes/cst.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "verilog-instantiate.generateInstance",
+        "title": "Verilog: 生成例化模板"
+      },
+      {
+        "command": "verilog-instantiate.xvlogLint",
+        "title": "Verilog: xvlog 检查当前文件"
+      },
+      {
+        "command": "verilog-instantiate.alignCode",
+        "title": "Verilog: 排版格式化"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "verilog-instantiate.generateInstance",
+        "key": "ctrl+shift+i",
+        "when": "editorLangId == verilog || editorLangId == systemverilog"
+      },
+      {
+        "command": "verilog-instantiate.generateInstance",
+        "key": "ctrl+1",
+        "when": "editorLangId == verilog || editorLangId == systemverilog"
+      },
+      {
+        "command": "verilog-instantiate.generateInstance",
+        "key": "ctrl+numpad1",
+        "when": "editorLangId == verilog || editorLangId == systemverilog"
+      },
+      {
+        "command": "verilog-instantiate.alignCode",
+        "key": "ctrl+l",
+        "when": "editorLangId == verilog || editorLangId == systemverilog"
+      },
+      {
+        "command": "verilog-instantiate.alignCode",
+        "key": "ctrl+numpad_l",
+        "when": "editorLangId == verilog || editorLangId == systemverilog"
+      }
+    ],
+    "configuration": {
+      "title": "Otter FPGA Toolkit",
+      "properties": {
+        "verilogInstantiate.tabSize": {
+          "type": "number",
+          "default": 4,
+          "description": "缩进空格数 (例化模板 / 排版共用)"
+        },
+        "verilogInstantiate.lintTool": {
+          "type": "string",
+          "default": "auto",
+          "enum": ["auto", "xvlog", "iverilog", "modelsim"],
+          "enumDescriptions": ["自动 (优先 iverilog)", "Vivado xvlog", "Icarus Verilog (iverilog)", "ModelSim/Questa (vlog)"],
+          "description": "语法检查工具"
+        },
+        "verilogInstantiate.xvlogPath": {
+          "type": "string",
+          "default": "xvlog",
+          "description": "xvlog 路径 (如 D:/Xilinx/Vivado/2024.2/bin/xvlog.bat)"
+        },
+        "verilogInstantiate.autoLintOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "保存文件时自动运行 xvlog 语法检查"
+        },
+        "verilogInstantiate.enableCompletion": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用代码补全 (module/always/case/fsm 等)"
+        },
+        "verilogInstantiate.iverilogIgnoreMissingModule": {
+          "type": "boolean",
+          "default": true,
+          "description": "iverilog 忽略 找不到模块 错误 (单文件开发时例化的外部模块必然找不到)"
+        }
+      }
+    }
+  },
+  "configurationDefaults": {
+    "editor.tokenColorCustomizations": {
+      "textMateRules": [
+        {
+          "scope": "entity.name.tag.instance",
+          "settings": {
+            "foreground": "#569CD6",
+            "fontStyle": "bold"
+          }
+        },
+        {
+          "scope": "entity.name.type.instance",
+          "settings": {
+            "foreground": "#6A9955"
+          }
+        },
+        {
+          "scope": "variable.other.readwrite",
+          "settings": {
+            "foreground": "#D8A0D8"
+          }
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "jimp": "^1.6.1"
+  }
+}

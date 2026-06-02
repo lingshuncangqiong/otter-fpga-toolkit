@@ -1,0 +1,84 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SystemVerilog",
+  "scopeName": "source.systemverilog",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#preprocessor" },
+    { "include": "#keywords" },
+    { "include": "#decl_types" },
+    { "include": "#constants" },
+    { "include": "#operators" },
+    { "include": "#module_names" },
+    { "include": "#inst_ports" },
+    { "include": "#signal_assignments" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.block", "begin": "/\\*", "end": "\\*/" },
+        { "name": "comment.line", "match": "//.*$" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double", "begin": "\"", "end": "\"" }
+      ]
+    },
+    "preprocessor": {
+      "patterns": [
+        { "name": "keyword.control.preprocessor", "match": "^\\s*(`(?:define|ifdef|ifndef|else|elsif|endif|include|undef|timescale|begin_keywords|end_keywords|celldefine|endcelldefine|default_nettype|resetall|line|pragma|__FILE__|__LINE__))\\b" },
+        { "name": "string.unquoted", "match": "`\\w+" }
+      ]
+    },
+    "decl_types": {
+      "patterns": [
+        { "name": "storage.type", "match": "\\b(input|output|inout|wire|reg|logic|bit|byte|int|parameter|localparam|integer|tri|wand|wor|supply0|supply1|enum|struct|union|typedef)\\b" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control", "match": "\\b(module|endmodule|if|else|case|casex|casez|endcase|begin|end|generate|endgenerate|for|foreach|while|do|initial|forever|repeat|function|endfunction|task|endtask|specify|endspecify|defparam|class|endclass|virtual|extends|new|assert|cover|property|endproperty|sequence|endsequence|covergroup|endgroup|coverpoint|cross|constraint|unique|priority|default|interface|endinterface|package|endpackage|import|export|modport|clocking|endclocking|randcase|expect|super|this|typedef|enum|struct|union)\\b" },
+        { "name": "keyword.control.conditional", "match": "\\b(assign|always_comb|always_ff|always_latch|always)\\b" },
+        { "name": "keyword.other", "match": "\\b(posedge|negedge|signed|unsigned|ref|automatic|static|protected|local|void|rand|randc|pure|context|interconnect|var|shortreal|chandle|type|noreturn)\\b" },
+        { "name": "storage.type", "match": "\\b(genvar|time|real|realtime|event|string|mailbox|semaphore|tri0|tri1|triand|trior|trireg|supply0|supply1)\\b" },
+        { "name": "constant.language", "match": "\\b(`true|`false)\\b" },
+        { "name": "support.function", "match": "\\$(display|write|monitor|finish|stop|time|random|readmemh|readmemb|fopen|fclose|fscanf|fwrite|sformat|sformatf|strobe|fatal|error|warning|info|clog2|ceil|floor|sqrt|realtobits|bitstoreal|itor|rtoi|signed|unsigned|isunknown|typename|bits|dimensions|unpacked_dimensions|left|right|low|high|increment|size|exists|first|last)\\b" }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        { "name": "constant.numeric", "match": "\\b(\\d+'[bBoOdDhH]\\s*[0-9a-fA-FxXzZ?_]+)\\b" },
+        { "name": "constant.numeric", "match": "\\b(\\d+(\\.\\d+)?)\\b" },
+        { "name": "constant.language", "match": "\\b(1'b0|1'b1|1'bx|1'bz)\\b" }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        { "name": "keyword.operator", "match": "(<=|>=|==|!=|===|!==|&&|\\|\\||!|~|&|\\||\\^|<<|>>|<<<|>>>|\\+\\+|\\-\\-|\\+|\\-|\\*|\\/|\\%)" }
+      ]
+    },
+    "module_names": {
+      "patterns": [
+        { "name": "entity.name.type", "match": "(?<=module\\s)\\w+" },
+        { "name": "entity.name.tag.instance", "match": "\\b\\w+(?=\\s*#\\s*\\()" },
+        { "name": "entity.name.tag.instance", "match": "\\b\\w+(?=\\s+\\w+\\s*\\()" },
+        { "name": "entity.name.type.instance", "match": "(?<=\\)\\s*)\\w+(?=\\s*\\()" },
+        { "name": "entity.name.type.instance", "match": "(?<=(?:\\w|\\))\\s)\\w+(?=\\s*\\()" }
+      ]
+    },
+    "inst_ports": {
+      "patterns": [
+        { "name": "entity.name.function", "match": "\\.\\w+(?=\\s*\\()" },
+        { "name": "variable.other.port", "match": "(?<=\\.\\w+\\s*\\(\\s*)\\w+" }
+      ]
+    },
+    "signal_assignments": {
+      "patterns": [
+        { "name": "variable.other.readwrite", "match": "(?<=\\bassign\\s)\\w+(?=\\s*=)" },
+        { "name": "variable.other.readwrite", "match": "(?<=^|\\s)\\w+(?=\\s*<=)" }
+      ]
+    }
+  }
+}

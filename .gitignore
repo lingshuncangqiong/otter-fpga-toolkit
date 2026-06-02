@@ -1,0 +1,10 @@
+*.vsix
+node_modules/
+*.log
+*.pb
+a.out
+token.txt
+__*.txt
+*.bat
+.vscode/
+secrets/

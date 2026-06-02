@@ -1,0 +1,111 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "XDC (Xilinx Design Constraints)",
+  "scopeName": "source.xdc",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#braces_content" },
+    { "include": "#brackets_content" },
+    { "include": "#commands" },
+    { "include": "#dotted_property" },
+    { "include": "#arguments" },
+    { "include": "#properties" },
+    { "include": "#iostandard" },
+    { "include": "#constants" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.number-sign", "match": "#.*$" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double", "begin": "\"", "end": "\"" }
+      ]
+    },
+    "braces_content": {
+      "patterns": [
+        {
+          "name": "meta.brace.curly",
+          "begin": "\\{",
+          "end": "\\}",
+          "patterns": [
+            { "include": "#strings" },
+            { "include": "#dotted_property" },
+            { "include": "#properties" },
+            { "include": "#iostandard" },
+            { "include": "#constants" },
+            { "include": "#numbers" },
+            { "include": "#arguments" }
+          ]
+        }
+      ]
+    },
+    "brackets_content": {
+      "patterns": [
+        {
+          "name": "meta.bracket.square",
+          "begin": "\\[",
+          "end": "\\]",
+          "patterns": [
+            { "include": "#strings" },
+            { "include": "#braces_content" },
+            { "include": "#commands" },
+            { "include": "#dotted_property" },
+            { "include": "#arguments" }
+          ]
+        }
+      ]
+    },
+    "commands": {
+      "patterns": [
+        { "name": "entity.name.tag",
+          "match": "\\b(set_property|create_clock|create_generated_clock|set_input_delay|set_output_delay|set_clock_groups|set_false_path|set_multicycle_path|set_max_delay|set_min_delay|get_ports|get_clocks|get_nets|get_cells|get_pins|get_property|current_design|report_property|report_timing|report_clock_networks|all_inputs|all_outputs|all_clocks|all_registers)\\b"
+        }
+      ]
+    },
+    "dotted_property": {
+      "patterns": [
+        { "name": "variable.other.member",
+          "match": "\\b\\w+(\\.\\w+)+\\b"
+        }
+      ]
+    },
+    "arguments": {
+      "patterns": [
+        { "name": "variable.parameter",
+          "match": "-\\b(name|period|waveform|clock|dict|reference_pin|max|min|add|group|asynchronous|from|to|through|hier|filter|of_objects|include_generated_clocks|source|setup|hold|rise|fall|quiet|duty_cycle|divide_by|multiply_by|edges|edge_shift|pin|master_clock|combinational)\\b"
+        }
+      ]
+    },
+    "properties": {
+      "patterns": [
+        { "name": "support.type",
+          "match": "\\b(PACKAGE_PIN|IOSTANDARD|PULLUP|PULLDOWN|DRIVE|SLEW|LOC|PROHIBIT|CONFIG_MODE|CFGBVS|DCI_CASCADE|INTERNAL_VREF|ODT|OUTPUT_IMPEDANCE|PRE_EMPHASIS|VCCAUX_IO|VCCO)\\b"
+        }
+      ]
+    },
+    "iostandard": {
+      "patterns": [
+        { "name": "string.unquoted",
+          "match": "\\b(LVCMOS12|LVCMOS15|LVCMOS18|LVCMOS25|LVCMOS33|LVTTL|HSTL_I|HSTL_II|HSTL_I_18|HSTL_II_18|SSTL135|SSTL15|SSTL18_I|SSTL18_II|DIFF_SSTL135|DIFF_SSTL15|DIFF_SSTL18_I|DIFF_SSTL18_II|LVDS|LVDS_25|BLVDS_25|MINI_LVDS_25|RSDS_25|PPDS_25|TMDS_33|SUB_LVDS|HSLVDCI|HSUL_12|SLVS|SLVCMOS)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        { "name": "string.unquoted",
+          "match": "\\b(TRUE|FALSE|true|false)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric", "match": "\\b\\d+\\.?\\d*\\b" }
+      ]
+    }
+  }
+}
