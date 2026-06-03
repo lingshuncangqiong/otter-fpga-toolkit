@@ -50,6 +50,7 @@
     "constants": {
       "patterns": [
         { "name": "constant.numeric", "match": "\\b(\\d+'[bBoOdDhH]\\s*[0-9a-fA-FxXzZ?_]+)\\b" },
+        { "name": "constant.numeric", "match": "('[bBoOdDhH]\\s*[0-9a-fA-FxXzZ?_]+)\\b" },
         { "name": "constant.numeric", "match": "\\b(\\d+(\\.\\d+)?)\\b" },
         { "name": "constant.language", "match": "\\b(1'b0|1'b1|1'bx|1'bz)\\b" }
       ]

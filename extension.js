@@ -248,8 +248,9 @@ function doFmt(entry, cols, orig){
     if(width)r+=width;
     r+=' '.repeat(Math.max(1,nc-r.length));
     r+=entry.name;
-    if(eq){r+=' '.repeat(Math.max(1,ec-r.length));r+='=';r+=' '.repeat(Math.max(1,vc-r.length));r+=eq;if(tail){r+=' '.repeat(Math.max(1,cc-r.length));r+=' '+tail;}}
+    if(eq){r+=' '.repeat(Math.max(1,ec-r.length));r+='=';r+=' '.repeat(Math.max(1,vc-r.length));r+=eq;if(tail){r+=' '.repeat(Math.max(0,cc-r.length));r+=' '+tail;}}
     else if(rest||tail){r+=' '.repeat(Math.max(1,cc-r.length));r+=rest+(tail?' '+tail:'');}
+    else{r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}
     return r+cmSig;
 }
 
