@@ -395,7 +395,7 @@ function parseModule(text){
     if(!m)return null;
     return {name:m[1],params:parseParams(m[2]||''),ports:parsePorts(m[3]||'')};
 }
-function parseParams(s){if(!s.trim())return[];const r=[];for(const x of spComma(s)){const t=x.trim();if(!t)continue;const m1=t.match(/parameter\s+(?:signed\s+)?(?:(\[[^\]]*\])\s*)?(\w+)\s*(?:=\s*(.+?))?\s*$/);if(m1)r.push({width:(m1[1]||'').trim(),name:m1[2],value:(m1[3]||'').trim()});else{const m2=t.match(/^\s*(\w+)\s*(?:=\s*(.+?))?\s*$/);if(m2)r.push({width:'',name:m2[1],value:(m2[2]||'').trim()});}}return r;}
+function parseParams(s){if(!s.trim())return[];const r=[];for(const x of spComma(s)){const t=x.trim();if(!t)continue;const m1=t.match(/parameter\s+(?:signed\s+)?(?:integer\s+|real\s+|realtime\s+|time\s+)?(?:(\[[^\]]*\])\s*)?(\w+)\s*(?:=\s*(.+?))?\s*$/);if(m1)r.push({width:(m1[1]||'').trim(),name:m1[2],value:(m1[3]||'').trim()});else{const m2=t.match(/^\s*(\w+)\s*(?:=\s*(.+?))?\s*$/);if(m2)r.push({width:'',name:m2[1],value:(m2[2]||'').trim()});}}return r;}
 function parsePorts(s){if(!s.trim())return[];const r=[];let d='',t='',w='';for(const x of spComma(s)){const v=x.trim();if(!v)continue;const m=v.match(/^(input|output|inout)\s+(wire\s+|reg\s+|logic\s+)?(?:signed\s+)?(?:(\[[^\]]*\])\s*)?(.*)/);if(m){d=m[1];t=(m[2]||'').trim();w=(m[3]||'').trim();if(m[4].trim())r.push({dir:d,type:t||(d==='output'?'wire':''),width:w,name:m[4].trim().replace(/[,;]$/,'')});}else if(d)r.push({dir:d,type:t||(d==='output'?'wire':''),width:w,name:v.replace(/[,;]$/,'')});}return r;}
 function spComma(s){const r=[];let d=0,c='';for(const ch of s){if(ch==='('||ch==='[')d++;else if(ch===')'||ch===']')d--;if(ch===','&&d===0){r.push(c);c='';}else c+=ch;}if(c.trim())r.push(c);return r;}
 
@@ -453,20 +453,25 @@ function genInst(mod,indent){
     const pCol=padToTab(mp+2,tab)+tab;
     const cpCol=padToTab(pCol+mv+1,tab);
     const name=mod.name,iname=name+'_U0';
-    const ls=[];ls.push(name+' #(');
-    // 参数 — 从原文提取注释
-    mod.params.forEach((p,i)=>{
-        const ci=comments.ports[p.name]||{};
-        if(ci.section)ls.push(ci.section);
-        let comment='';
-        if(ci&&ci.decl)comment=ci.decl.replace(/^\s+/,'');else comment='parameter '+p.name+' = '+(p.value||'');
-        let l=indent+'.'+p.name;l+=' '.repeat(Math.max(1,pCol-l.length));
-        l+='('+p.name;l+=' '.repeat(Math.max(1,cpCol-l.length));
-        l+=(i===mod.params.length-1)?') ':'),';
-        l+='// '+comment;
-        ls.push(l);
-    });
-    ls.push(') '+iname+' (');
+    const ls=[];
+    if(mod.params.length){
+        ls.push(name+' #(');
+        // 参数 — 从原文提取注释
+        mod.params.forEach((p,i)=>{
+            const ci=comments.ports[p.name]||{};
+            if(ci.section)ls.push(ci.section);
+            let comment='';
+            if(ci&&ci.decl)comment=ci.decl.replace(/^\s+/,'');else comment='parameter '+p.name+' = '+(p.value||'');
+            let l=indent+'.'+p.name;l+=' '.repeat(Math.max(1,pCol-l.length));
+            l+='('+p.name;l+=' '.repeat(Math.max(1,cpCol-l.length));
+            l+=(i===mod.params.length-1)?') ':'),';
+            l+='// '+comment;
+            ls.push(l);
+        });
+        ls.push(') '+iname+' (');
+    }else{
+        ls.push(name+' '+iname+' (');
+    }
     // 端口
     mod.ports.forEach((p,i)=>{
         const ci=comments.ports[p.name]||{};
