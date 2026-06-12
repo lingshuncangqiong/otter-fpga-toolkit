@@ -254,6 +254,35 @@ function doFmt(entry, cols, orig){
     return r+cmSig;
 }
 
+//===== include 路径自动检测 =====
+function findIncludePaths(fp){
+    var cfg=vscode.workspace.getConfiguration('verilogInstantiate');
+    var customPaths=cfg.get('includePaths',[]);
+    var result=[];
+    for(var i=0;i<customPaths.length;i++){
+        var p=customPaths[i].replace(/\\/g,'/'); if(p&&result.indexOf(p)<0)result.push(p);
+    }
+    // 未配置时自动向上搜索 3 层找 inc/rtl/src/include/hdl 目录
+    if(!result.length){
+        var dir=path.dirname(fp);
+        var searchDirs=['inc','include','rtl','src','hdl'];
+        for(var d=0;d<3;d++){
+            if(!fs.existsSync(dir))break;
+            for(var s=0;s<searchDirs.length;s++){
+                var sd=path.join(dir,searchDirs[s]);
+                if(!fs.existsSync(sd))continue;
+                try{
+                    var items=fs.readdirSync(sd); var found=false;
+                    for(var k=0;k<items.length;k++){if(/\.(vh|svh)$/i.test(items[k])){found=true;break;}}
+                    if(found){sd=sd.replace(/\\/g,'/');if(result.indexOf(sd)<0)result.push(sd);}
+                }catch(e){}
+            }
+            var parent=path.dirname(dir); if(parent===dir)break; dir=parent;
+        }
+    }
+    return result;
+}
+
 let _cachedXvlogPath=null;
 function findXvlog(){
     const cfg=vscode.workspace.getConfiguration('verilogInstantiate');
@@ -292,7 +321,11 @@ function findModelsim(){
 }
 
 function runIverilog(uri,diagColl,fp,fd){
-    var child=cp.spawn('iverilog',['-g2012','-Wall','-t','null',fp],{cwd:fd});
+    var incPaths=findIncludePaths(fp);
+    var args=['-g2012','-Wall','-t','null'];
+    for(var i=0;i<incPaths.length;i++){args.push('-I');args.push(incPaths[i]);}
+    args.push(fp);
+    var child=cp.spawn('iverilog',args,{cwd:fd});
     var out='';
     child.stderr.on('data',function(d){out+=d.toString();});
     child.stdout.on('data',function(d){out+=d.toString();});
@@ -321,7 +354,11 @@ function runIverilog(uri,diagColl,fp,fd){
 function runModelsim(uri,diagColl,fp,fd){
     var vlog=findModelsim();
     if(!vlog)return;
-    var child=cp.spawn('cmd',['/c',vlog,'-sv',fp],{cwd:fd});
+    var incPaths=findIncludePaths(fp);
+    var args=['/c',vlog,'-sv'];
+    for(var i=0;i<incPaths.length;i++){args.push('+incdir+'+incPaths[i]);}
+    args.push(fp);
+    var child=cp.spawn('cmd',args,{cwd:fd});
     var out='';
     child.stdout.on('data',function(d){out+=d.toString();});
     child.stderr.on('data',function(d){out+=d.toString();});
@@ -344,7 +381,11 @@ function runModelsim(uri,diagColl,fp,fd){
 function runXvlog(uri,diagColl,fp,fd){
     var xvl=findXvlog();
     if(!xvl||xvl==='xvlog')return;
-    var child=cp.spawn('cmd',['/c',xvl,'-sv',fp],{cwd:fd});
+    var incPaths=findIncludePaths(fp);
+    var args=['/c',xvl,'-sv'];
+    for(var i=0;i<incPaths.length;i++){args.push('-i');args.push(incPaths[i]);}
+    args.push(fp);
+    var child=cp.spawn('cmd',args,{cwd:fd});
     var out='';
     child.stdout.on('data',function(d){out+=d.toString();});
     child.stderr.on('data',function(d){out+=d.toString();});

@@ -3,7 +3,7 @@
   "displayName": "Otter FPGA Toolkit - 水獭FPGA工具集",
   "description": "小水獭的FPGA开发利器：一键例化、代码排版、iverilog/xvlog语法检查、高亮、跳转、补全",
   "icon": "icon.png",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "publisher": "Otter-xiaoxiaoxuwang",
   "repository": {
     "type": "git",
@@ -183,6 +183,14 @@
           "type": "boolean",
           "default": true,
           "description": "iverilog 忽略 找不到模块 错误 (单文件开发时例化的外部模块必然找不到)"
+        },
+        "verilogInstantiate.includePaths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "头文件搜索路径（如 D:/my_project/include）。用于独立文件语法检查时指定 include 文件所在目录。留空时自动向上搜索 3 层找 inc/rtl/src/include 目录"
         }
       }
     }
