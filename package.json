@@ -3,7 +3,7 @@
   "displayName": "Otter FPGA Toolkit - 水獭FPGA工具集",
   "description": "小水獭的FPGA开发利器：一键例化、代码排版、iverilog/xvlog语法检查、高亮、跳转、补全",
   "icon": "icon.png",
-  "version": "2.1.6",
+  "version": "2.1.7",
   "publisher": "Otter-xiaoxiaoxuwang",
   "repository": {
     "type": "git",

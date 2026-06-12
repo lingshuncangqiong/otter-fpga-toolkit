@@ -358,7 +358,7 @@ function runModelsim(uri,diagColl,fp,fd){
     var args=['/c',vlog,'-sv'];
     for(var i=0;i<incPaths.length;i++){args.push('+incdir+'+incPaths[i]);}
     args.push(fp);
-    var child=cp.spawn('cmd',args,{cwd:fd});
+    var child=cp.spawn('cmd',args,{cwd:os.tmpdir()});
     var out='';
     child.stdout.on('data',function(d){out+=d.toString();});
     child.stderr.on('data',function(d){out+=d.toString();});
