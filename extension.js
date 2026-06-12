@@ -306,6 +306,8 @@ function runIverilog(uri,diagColl,fp,fd){
             if(m){
                 var ln=parseInt(m[2])-1,msg=m[3].trim();
                 if(ln<0||!msg)continue;
+                // 过滤 iverilog 编译器退出信息 (非语法错误)
+                if(/Verilog Compiler exiting/i.test(msg))continue;
                 // 过滤找不到例化模块的错误 (单体文件开发场景)
                 if(ignoreMissing&&/Unknown module( type)?|module\b.*\bnot found|Module\b.*\bnot found/i.test(msg))continue;
                 var sev=/error/i.test(msg)?vscode.DiagnosticSeverity.Error:vscode.DiagnosticSeverity.Warning;
