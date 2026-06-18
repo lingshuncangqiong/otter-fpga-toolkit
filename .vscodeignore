@@ -3,3 +3,4 @@ node_modules/**
 .git/**
 *.vsix
 _conv.js
+AGENTS.md
