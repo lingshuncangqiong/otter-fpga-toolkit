@@ -7,8 +7,8 @@ This repository is the public release checkout for Otter FPGA Toolkit.
 - Develop and test changes in `../2-dev/`.
 - Sync into this `1-release/` repository only after the user confirms the test build works.
 - Do not edit stale duplicate files from the parent project root if they exist.
-- Current release: `2.1.9`.
-- Current GitHub release commit: `e5ab9d671309372654e83b624561f5680ad799a1`.
+- Current release: `2.1.10`.
+- Current GitHub release commit: see latest `main` release commit in `git log`.
 
 ## Release Rules
 
@@ -39,7 +39,7 @@ This repository is the public release checkout for Otter FPGA Toolkit.
 - Manual upload URL:
   `https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang`
 - Upload the final release VSIX from `1-release/`, currently:
-  `otter-fpga-toolkit-2.1.9.vsix`
+  `otter-fpga-toolkit-2.1.10.vsix`
 
 ## Cleanup
 

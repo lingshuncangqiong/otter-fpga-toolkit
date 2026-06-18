@@ -418,24 +418,30 @@ function runXvlog(uri,diagColl,fp,fd){
     var args=['/c',xvl,'-sv'];
     for(var i=0;i<incPaths.length;i++){args.push('-i');args.push(incPaths[i]);}
     args.push(fp);
-    var child=cp.spawn('cmd',args,{cwd:fd});
+    var workDir=fs.mkdtempSync(path.join(os.tmpdir(),'otter-xvlog-'));
+    var cleanup=function(){try{fs.rmSync(workDir,{recursive:true,force:true});}catch(e){}};
+    var child=cp.spawn('cmd',args,{cwd:workDir});
     var out='';
     child.stdout.on('data',function(d){out+=d.toString();});
     child.stderr.on('data',function(d){out+=d.toString();});
+    child.on('error',function(e){cleanup();});
     child.on('close',function(code){
-        for(var f=0;f<4;f++){var ff=['xvlog.log','xvlog.pb','webtalk.log','webtalk.pb'][f];try{fs.unlinkSync(path.join(fd,ff));}catch(e){}}
-        if(!out){diagColl.delete(uri);return;}
-        var ps=[];
-        var lines=out.split(/\r?\n/);
-        for(var j=0;j<lines.length;j++){
-            var m=lines[j].match(/(ERROR|WARNING|CRITICAL WARNING):\s*\[[^\]]+\]\s+(.+?)\s*\[.+?(\d+)\]$/);
-            if(m&&m[1]!=='INFO'){
-                var ln=parseInt(m[3])-1,msg=m[2].trim();
-                var isWarn=m[1]==='WARNING'||m[1]==='CRITICAL WARNING';
-                if(ln>=0)ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,isWarn?vscode.DiagnosticSeverity.Warning:vscode.DiagnosticSeverity.Error));
+        try{
+            if(!out){diagColl.delete(uri);return;}
+            var ps=[];
+            var lines=out.split(/\r?\n/);
+            for(var j=0;j<lines.length;j++){
+                var m=lines[j].match(/(ERROR|WARNING|CRITICAL WARNING):\s*\[[^\]]+\]\s+(.+?)\s*\[.+?(\d+)\]$/);
+                if(m&&m[1]!=='INFO'){
+                    var ln=parseInt(m[3])-1,msg=m[2].trim();
+                    var isWarn=m[1]==='WARNING'||m[1]==='CRITICAL WARNING';
+                    if(ln>=0)ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,isWarn?vscode.DiagnosticSeverity.Warning:vscode.DiagnosticSeverity.Error));
+                }
             }
+            diagColl.set(uri,ps);
+        }finally{
+            cleanup();
         }
-        diagColl.set(uri,ps);
     });
 }
 function doLint(uri,diagColl,force){
