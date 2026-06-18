@@ -148,13 +148,19 @@ function activate(context) {
             var seen={};
             for(var i=0;i<doc.lineCount;i++){
                 var line=doc.lineAt(i).text.replace(/\/\/.*$/,'').trim();
-                var dm=line.match(/^\s*(input|output|inout|wire|reg|parameter|localparam|integer|genvar|logic|bit|int|tri|wand|wor)\s+(?:signed\s+)?(?:\[[^\]]*\]\s*)?(\w+)/);
-                if(dm&&dm[2]&&dm[2].length>1&&!seen[dm[2]]){
-                    seen[dm[2]]=true;
-                    var ci=new vscode.CompletionItem(dm[2],vscode.CompletionItemKind.Variable);
-                    ci.detail='[Otter] '+dm[1]+' (line '+(i+1)+')';
-                    ci.sortText='2_'+dm[2];
-                    list.push(ci);
+                var dd=parseDeclBody(line);
+                if(dd){
+                    var names=declNames(dd);
+                    for(var ni=0;ni<names.length;ni++){
+                        var dn=names[ni];
+                        if(dn&&dn.length>1&&!seen[dn]){
+                            seen[dn]=true;
+                            var ci2=new vscode.CompletionItem(dn,vscode.CompletionItemKind.Variable);
+                            ci2.detail='[Otter] '+dd.type+' (line '+(i+1)+')';
+                            ci2.sortText='2_'+dn;
+                            list.push(ci2);
+                        }
+                    }
                 }
             }
             return list;
@@ -164,25 +170,56 @@ function activate(context) {
 
 function isV(d){return ['verilog','systemverilog'].includes(d.languageId);}
 
+function parseDeclBody(body){
+    if(!body)return null;
+    let rest=body.replace(/\t/g,' ').replace(/^\s+/,'').replace(/\s+$/,'');
+    const km=rest.match(/^(input|output|inout|wire|reg|parameter|localparam|integer|genvar|logic|bit|int|tri|wand|wor)\b/);
+    if(!km)return null;
+    const base=km[1];
+    let type=base;
+    rest=rest.slice(km[0].length).replace(/^\s+/,'');
+    if(/^(input|output|inout)$/.test(base)){
+        const tm=rest.match(/^(wire|reg|logic)\b/);
+        if(tm){type+=' '+tm[1];rest=rest.slice(tm[0].length).replace(/^\s+/,'');}
+    }else if(/^(parameter|localparam)$/.test(base)){
+        const tm=rest.match(/^(integer|real|realtime|time|logic|bit|int)\b/);
+        if(tm){type+=' '+tm[1];rest=rest.slice(tm[0].length).replace(/^\s+/,'');}
+    }
+    const sm=rest.match(/^signed\b/);
+    if(sm){type+=' signed';rest=rest.slice(sm[0].length).replace(/^\s+/,'');}
+    let width='',cl='',rr='';
+    const wm=rest.match(/^\[([^\]]*)\]\s*/);
+    if(wm){
+        width='['+wm[1]+']';
+        const cm=wm[1].match(/^(.+?)\s*:\s*(\S+)$/);
+        if(cm){cl=cm[1];rr=cm[2];}
+        rest=rest.slice(wm[0].length).replace(/^\s+/,'');
+    }
+    const nm=rest.match(/^(\w+)\s*(.*)$/);
+    if(!nm)return null;
+    return {base,type,width,cl,rr,name:nm[1],rest:nm[2]||''};
+}
+
+function declNames(decl){
+    const out=[decl.name];
+    const rest=(decl.rest||'').replace(/\/\/.*$/,'');
+    if(/^\s*=/.test(rest))return out;
+    const parts=rest.replace(/;.*/,'').split(',');
+    for(let i=0;i<parts.length;i++){
+        const m=parts[i].trim().match(/^(\w+)\b/);
+        if(m)out.push(m[1]);
+    }
+    return out;
+}
+
 function parseLine(line, tab){
     if(!line)return null;
     tab=tab||4;
     const rawInd=line.match(/^(\s*)/)[1];
     const ind=rawInd.replace(/\t/g,' '.repeat(tab));
-    let body=line.replace(/^\s*/,'').replace(/\s*\/\/.*$/,'').replace(/\s+$/,'');
+    let rawBody=line.replace(/^\s*/,'').replace(/\s*\/\/.*$/,'').replace(/\s+$/,'').replace(/\t/g,' ');
+    let body=rawBody;
     if(!body)return null;
-
-    // 提取原始宽度文本(不压缩空格), 用于保留 [EXPR     - 1  :0] 中的原有间距
-    let rawCL='', rawRR='';
-    {
-        const tmp=body.replace(/\t/g,' ');
-        const wm=tmp.match(/\[([^\]]*)\]/);
-        if(wm){
-            const inner=wm[1];
-            const cm=inner.match(/^(.+?)\s*:\s*(\S+)$/);
-            if(cm){rawCL=cm[1]; rawRR=cm[2];}
-        }
-    }
 
     body=body.replace(/\t/g,' ').replace(/ {2,}/g,' ').replace(/\s+;/g,';').replace(/\s+,/g,',');
     if(/^(assign|always|if|else|case|endcase|begin|end|function|endfunction|task|endtask|generate|endgenerate|endmodule|module|initial|forever|while|for|@|#)\b/.test(body))return null;
@@ -199,13 +236,13 @@ function parseLine(line, tab){
         return {ind,tag:'inst_port',port:im[1],conn:(im[2]||'').trim()};
     }
     // 信号声明
-    const m=body.match(/^(input|output|inout|wire|reg|parameter|localparam|integer|genvar|logic|bit|int|tri|wand|wor)\b\s*(?:signed\s+)?(?:(\[[^\]]*\])\s*)?(\w+)\s*(.*)$/);
-    if(!m)return null;
-    let rest=m[4]||'';
+    const d=parseDeclBody(rawBody);
+    if(!d)return null;
+    let rest=d.rest||'';
     const tail=rest.match(/[,;]\s*$/)?rest.match(/[,;]\s*$/)[0].trim():'';
     rest=rest.replace(/[,;]\s*$/,'').trim();
     let eq='';const em=rest.match(/^\s*=\s*(.+)$/);if(em)eq=em[1].trim();
-    return {ind,type:m[1],name:m[3],eq,tail,cl:rawCL,rr:rawRR};
+    return {ind,type:d.type,name:d.name,eq,tail,rest:eq?'':rest,width:d.width,cl:d.cl,rr:d.rr};
 }
 
 function doFmt(entry, cols, orig){
@@ -235,14 +272,10 @@ function doFmt(entry, cols, orig){
     }
     // 信号声明
     const {bc,cp,nc,ec,vc,cc}=cols;
-    const m=body.match(/^(input|output|inout|wire|reg|parameter|localparam|integer|genvar|logic|bit|int|tri|wand|wor)\b\s*(?:signed\s+)?(?:(\[[^\]]*\])\s*)?(\w+)\s*(.*)$/);
-    if(!m)return entry.ind+body.replace(/(\w)\s*=\s*(\d)/g,'$1 = $2')+cmSig;
-    let rest=(m[4]||'').trim();
-    const tail=rest.match(/[,;]\s*$/)?rest.match(/[,;]\s*$/)[0].trim():'';
-    rest=rest.replace(/[,;]\s*$/,'').trim();
-    let eq='';const em=rest.match(/^\s*=\s*(.+)$/);if(em)eq=em[1].trim();
+    let rest=entry.rest||'', tail=entry.tail||'', eq=entry.eq||'';
     let width='';
-    if(entry.cl)width='['+entry.cl+' '.repeat(Math.max(0,cp-entry.cl.length))+':'+entry.rr+']';
+    if(entry.cl&&entry.rr)width='['+entry.cl+' '.repeat(Math.max(0,cp-entry.cl.length))+':'+entry.rr+']';
+    else if(entry.width)width=entry.width;
     let r=entry.ind+entry.type;
     r+=' '.repeat(Math.max(1,bc-r.length));
     if(width)r+=width;
@@ -312,7 +345,7 @@ function findModelsim(){
         var root=(k===0?'C:/':'D:/');
         try{var items=fs.readdirSync(root);for(var l=0;l<items.length;l++){
             if(!/model/i.test(items[l]))continue;
-            var vlog=p.join(root,items[l],'win64','vlog.exe');
+            var vlog=path.join(root,items[l],'win64','vlog.exe');
             if(fs.existsSync(vlog))return vlog;
         }}catch(e){}
     }
@@ -426,6 +459,16 @@ function findDecl(doc,pos){
     const w=doc.getText(wr);if(!w||w.length<2)return null;
     for(let i=0;i<doc.lineCount;i++){
         const l=doc.lineAt(i).text.replace(/\/\/.*$/,'');
+        const d=parseDeclBody(l);
+        if(d){
+            const names=declNames(d);
+            for(let ni=0;ni<names.length;ni++){
+                if(names[ni]===w){
+                    const ch=l.indexOf(w,ni===0?0:l.indexOf(d.name)+d.name.length);
+                    if(ch>=0)return new vscode.Location(doc.uri,new vscode.Position(i,ch));
+                }
+            }
+        }
         if(new RegExp(`(?:input|output|inout|wire|reg|parameter|localparam|integer|genvar|logic|bit|int|tri|wand|wor|assign|function|task|module|event|time|real)\\s+(?:signed\\s+)?(?:\\[[^\\]]*\\]\\s*)?${escapeReg(w)}(?![\\w])`).test(l)){const ch=l.indexOf(w);if(ch>=0)return new vscode.Location(doc.uri,new vscode.Position(i,ch));}
     }return null;
 }
@@ -438,8 +481,8 @@ function parseModule(text){
     if(!m)return null;
     return {name:m[1],params:parseParams(m[2]||''),ports:parsePorts(m[3]||'')};
 }
-function parseParams(s){if(!s.trim())return[];const r=[];for(const x of spComma(s)){const t=x.trim();if(!t)continue;const m1=t.match(/parameter\s+(?:signed\s+)?(?:integer\s+|real\s+|realtime\s+|time\s+)?(?:(\[[^\]]*\])\s*)?(\w+)\s*(?:=\s*(.+?))?\s*$/);if(m1)r.push({width:(m1[1]||'').trim(),name:m1[2],value:(m1[3]||'').trim()});else{const m2=t.match(/^\s*(\w+)\s*(?:=\s*(.+?))?\s*$/);if(m2)r.push({width:'',name:m2[1],value:(m2[2]||'').trim()});}}return r;}
-function parsePorts(s){if(!s.trim())return[];const r=[];let d='',t='',w='';for(const x of spComma(s)){const v=x.trim();if(!v)continue;const m=v.match(/^(input|output|inout)\s+(wire\s+|reg\s+|logic\s+)?(?:signed\s+)?(?:(\[[^\]]*\])\s*)?(.*)/);if(m){d=m[1];t=(m[2]||'').trim();w=(m[3]||'').trim();if(m[4].trim())r.push({dir:d,type:t||(d==='output'?'wire':''),width:w,name:m[4].trim().replace(/[,;]$/,'')});}else if(d)r.push({dir:d,type:t||(d==='output'?'wire':''),width:w,name:v.replace(/[,;]$/,'')});}return r;}
+function parseParams(s){if(!s.trim())return[];const r=[];for(const x of spComma(s)){const t=x.trim();if(!t)continue;const d=parseDeclBody(t);if(d&&/^(parameter|localparam)$/.test(d.base)){const em=(d.rest||'').trim().match(/^=\s*(.+?)\s*$/);r.push({width:d.width,name:d.name,value:(em?em[1]:'').trim()});continue;}const m2=t.match(/^\s*(\w+)\s*(?:=\s*(.+?))?\s*$/);if(m2)r.push({width:'',name:m2[1],value:(m2[2]||'').trim()});}return r;}
+function parsePorts(s){if(!s.trim())return[];const r=[];let d='',t='',w='';for(const x of spComma(s)){const v=x.trim();if(!v)continue;const pd=parseDeclBody(v);if(pd&&/^(input|output|inout)$/.test(pd.base)){d=pd.base;t=pd.type.replace(new RegExp('^'+pd.base+'\\s*'),'').trim();w=pd.width;if(pd.name)r.push({dir:d,type:t||(d==='output'?'wire':''),width:w,name:pd.name.replace(/[,;]$/,'')});}else if(d)r.push({dir:d,type:t||(d==='output'?'wire':''),width:w,name:v.replace(/[,;]$/,'')});}return r;}
 function spComma(s){const r=[];let d=0,c='';for(const ch of s){if(ch==='('||ch==='[')d++;else if(ch===')'||ch===']')d--;if(ch===','&&d===0){r.push(c);c='';}else c+=ch;}if(c.trim())r.push(c);return r;}
 
 // 从原始文本提取 section注释/参数/端口声明行原文
@@ -466,19 +509,19 @@ function extractComments(text,mod){
 
         if(inParams){
             if(/^\/\//.test(t)){pendingSection=line;continue;}
-            const pm=t.match(/^\s*parameter\s+(?:signed\s+)?(?:\[[^\]]*\]\s*)?(\w+)/);
-            if(pm){
-                if(!result.ports[pm[1]])result.ports[pm[1]]={};
-                if(pendingSection){result.ports[pm[1]].section=pendingSection;pendingSection=null;}
-                result.ports[pm[1]].decl=line;
+            const pd=parseDeclBody(t);
+            if(pd&&/^(parameter|localparam)$/.test(pd.base)){
+                if(!result.ports[pd.name])result.ports[pd.name]={};
+                if(pendingSection){result.ports[pd.name].section=pendingSection;pendingSection=null;}
+                result.ports[pd.name].decl=line;
             }
             continue;
         }
         if(!inPorts)continue;
         if(/^\/\//.test(t)){pendingSection=line;continue;}
-        const m=t.match(/^(input|output|inout)\s+(?:wire\s+|reg\s+)?(?:signed\s+)?(?:(\[[^\]]*\])\s*)?(\w+)/);
-        if(m){
-            const pn=m[3].replace(/[,;]$/,'');
+        const pd=parseDeclBody(t);
+        if(pd&&/^(input|output|inout)$/.test(pd.base)){
+            const pn=pd.name.replace(/[,;]$/,'');
             if(!result.ports[pn])result.ports[pn]={};
             if(pendingSection){result.ports[pn].section=pendingSection;pendingSection=null;}
             result.ports[pn].decl=line;
