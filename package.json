@@ -3,7 +3,7 @@
   "displayName": "Otter FPGA Toolkit - 水獭FPGA工具集",
   "description": "小水獭的FPGA开发利器：一键例化、代码排版、iverilog/xvlog语法检查、高亮、跳转、补全",
   "icon": "icon.png",
-  "version": "2.1.10",
+  "version": "2.1.11",
   "publisher": "Otter-xiaoxiaoxuwang",
   "repository": {
     "type": "git",
@@ -172,7 +172,17 @@
         "verilogInstantiate.autoLintOnSave": {
           "type": "boolean",
           "default": true,
-          "description": "保存文件时自动运行 xvlog 语法检查"
+          "description": "保存文件时自动运行语法检查"
+        },
+        "verilogInstantiate.lintOnOpen": {
+          "type": "boolean",
+          "default": false,
+          "description": "打开 Verilog/SystemVerilog 文件时自动运行语法检查"
+        },
+        "verilogInstantiate.lintOnActiveEditorChange": {
+          "type": "boolean",
+          "default": false,
+          "description": "切换到 Verilog/SystemVerilog 编辑器时自动运行语法检查"
         },
         "verilogInstantiate.enableCompletion": {
           "type": "boolean",

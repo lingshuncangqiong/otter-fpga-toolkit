@@ -6,6 +6,37 @@ const os = require('os');
 
 function padToTab(c,t){return Math.ceil(c/t)*t;}
 
+const lintTimers = new Map();
+const lintSeq = new Map();
+
+function lintKey(uri){return uri.toString();}
+function nextLintSeq(uri){const key=lintKey(uri);const seq=(lintSeq.get(key)||0)+1;lintSeq.set(key,seq);return seq;}
+function isCurrentLint(uri,seq){return lintSeq.get(lintKey(uri))===seq;}
+function scheduleLint(uri,diagColl,force,delay){
+    const key=lintKey(uri);
+    const old=lintTimers.get(key);
+    if(old)clearTimeout(old);
+    nextLintSeq(uri);
+    const timer=setTimeout(()=>{lintTimers.delete(key);doLint(uri,diagColl,force);},delay);
+    lintTimers.set(key,timer);
+}
+function cancelLint(uri){
+    const key=lintKey(uri);
+    const old=lintTimers.get(key);
+    if(old)clearTimeout(old);
+    lintTimers.delete(key);
+    nextLintSeq(uri);
+}
+function applyLintDiagnostics(uri,diagColl,seq,items){
+    if(isCurrentLint(uri,seq))diagColl.set(uri,items);
+}
+function clearLintDiagnostics(uri,diagColl,seq){
+    if(isCurrentLint(uri,seq))diagColl.delete(uri);
+}
+function cleanupDir(dir){
+    try{if(dir)fs.rmSync(dir,{recursive:true,force:true});}catch(e){}
+}
+
 function activate(context) {
     const diagColl = vscode.languages.createDiagnosticCollection('verilog-xvlog');
     context.subscriptions.push(diagColl);
@@ -81,17 +112,22 @@ function activate(context) {
 
     //===== xvlog =====
     context.subscriptions.push(vscode.commands.registerCommand('verilog-instantiate.xvlogLint', async () => {
-        const ed=vscode.window.activeTextEditor;if(!ed)return;await ed.document.save();doLint(ed.document.uri,diagColl,true);
+        const ed=vscode.window.activeTextEditor;if(!ed)return;await ed.document.save();scheduleLint(ed.document.uri,diagColl,true,0);
     }));
-    const saveSub=vscode.workspace.onDidSaveTextDocument(d=>{if(isV(d))doLint(d.uri,diagColl);});
+    const saveSub=vscode.workspace.onDidSaveTextDocument(d=>{if(isV(d))scheduleLint(d.uri,diagColl,false,200);});
     context.subscriptions.push(saveSub);
-    const openSub=vscode.workspace.onDidOpenTextDocument(d=>{if(isV(d))setTimeout(()=>doLint(d.uri,diagColl),400);});
+    const openSub=vscode.workspace.onDidOpenTextDocument(d=>{
+        if(isV(d)&&vscode.workspace.getConfiguration('verilogInstantiate').get('lintOnOpen',false))scheduleLint(d.uri,diagColl,false,500);
+    });
     context.subscriptions.push(openSub);
-    const changeSub=vscode.window.onDidChangeActiveTextEditor(ed=>{if(ed&&isV(ed.document))setTimeout(()=>doLint(ed.document.uri,diagColl),400);});
+    const changeSub=vscode.window.onDidChangeActiveTextEditor(ed=>{
+        if(ed&&isV(ed.document)&&vscode.workspace.getConfiguration('verilogInstantiate').get('lintOnActiveEditorChange',false))scheduleLint(ed.document.uri,diagColl,false,500);
+    });
     context.subscriptions.push(changeSub);
-    const closeSub=vscode.workspace.onDidCloseTextDocument(d=>{if(isV(d))diagColl.delete(d.uri);});
+    const closeSub=vscode.workspace.onDidCloseTextDocument(d=>{if(isV(d)){cancelLint(d.uri);diagColl.delete(d.uri);}});
     context.subscriptions.push(closeSub);
-    const ae=vscode.window.activeTextEditor;if(ae&&isV(ae.document))setTimeout(()=>doLint(ae.document.uri,diagColl),500);
+    const ae=vscode.window.activeTextEditor;
+    if(ae&&isV(ae.document)&&vscode.workspace.getConfiguration('verilogInstantiate').get('lintOnOpen',false))scheduleLint(ae.document.uri,diagColl,false,500);
 
     //===== 跳转/悬停 =====
     context.subscriptions.push(vscode.languages.registerDefinitionProvider(['verilog','systemverilog'],{provideDefinition(doc,pos){return findDecl(doc,pos);}}));
@@ -334,8 +370,8 @@ function findXvlog(){
 
 function findIverilog(){
     var paths=['C:/iverilog/bin/iverilog.exe','C:/Program Files/iverilog/bin/iverilog.exe','D:/iverilog/bin/iverilog.exe'];
-    for(var i=0;i<paths.length;i++){if(fs.existsSync(paths[i]))return 'iverilog';}
-    try{var r=cp.execSync('where iverilog',{encoding:'utf8',timeout:2000,stdio:['pipe','pipe','pipe']});if(r&&r.trim())return 'iverilog';}catch(e){}
+    for(var i=0;i<paths.length;i++){if(fs.existsSync(paths[i]))return paths[i];}
+    try{var r=cp.execSync('where iverilog',{encoding:'utf8',timeout:2000,stdio:['pipe','pipe','pipe']}).trim().split(/\r?\n/);if(r[0])return r[0].trim();}catch(e){}
     return null;
 }
 
@@ -353,65 +389,79 @@ function findModelsim(){
     return null;
 }
 
-function runIverilog(uri,diagColl,fp,fd){
+function runIverilog(uri,diagColl,fp,fd,seq){
+    var exe=findIverilog();
+    if(!exe)return;
     var incPaths=findIncludePaths(fp);
-    var args=['-g2012','-Wall','-t','null'];
+    var workDir=fs.mkdtempSync(path.join(os.tmpdir(),'otter-iverilog-'));
+    var outFile=path.join(workDir,'lint.out');
+    var args=['-g2012','-Wall','-t','null','-o',outFile];
     for(var i=0;i<incPaths.length;i++){args.push('-I');args.push(incPaths[i]);}
     args.push(fp);
-    var child=cp.spawn('iverilog',args,{cwd:fd});
+    var child=cp.spawn(exe,args,{cwd:workDir});
     var out='';
     child.stderr.on('data',function(d){out+=d.toString();});
     child.stdout.on('data',function(d){out+=d.toString();});
+    child.on('error',function(e){clearLintDiagnostics(uri,diagColl,seq);cleanupDir(workDir);});
     child.on('close',function(code){
-        if(!out){diagColl.delete(uri);return;}
-        var ignoreMissing=vscode.workspace.getConfiguration('verilogInstantiate').get('iverilogIgnoreMissingModule',true);
-        var ps=[];
-        var lines=out.split(/\r?\n/);
-        for(var i=0;i<lines.length;i++){
-            var m=lines[i].match(/^(.+):(\d+):\s+(.+)$/);
-            if(m){
-                var ln=parseInt(m[2])-1,msg=m[3].trim();
-                if(ln<0||!msg)continue;
-                // 过滤 iverilog 编译器退出信息 (非语法错误)
-                if(/Verilog Compiler exiting/i.test(msg))continue;
-                // 过滤找不到例化模块的错误 (单体文件开发场景)
-                if(ignoreMissing&&/Unknown module( type)?|module\b.*\bnot found|Module\b.*\bnot found/i.test(msg))continue;
-                var sev=/error/i.test(msg)?vscode.DiagnosticSeverity.Error:vscode.DiagnosticSeverity.Warning;
-                ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,sev));
+        try{
+            if(!out){clearLintDiagnostics(uri,diagColl,seq);return;}
+            var ignoreMissing=vscode.workspace.getConfiguration('verilogInstantiate').get('iverilogIgnoreMissingModule',true);
+            var ps=[];
+            var lines=out.split(/\r?\n/);
+            for(var i=0;i<lines.length;i++){
+                var m=lines[i].match(/^(.+):(\d+):\s+(.+)$/);
+                if(m){
+                    var ln=parseInt(m[2])-1,msg=m[3].trim();
+                    if(ln<0||!msg)continue;
+                    // 过滤 iverilog 编译器退出信息 (非语法错误)
+                    if(/Verilog Compiler exiting/i.test(msg))continue;
+                    // 过滤找不到例化模块的错误 (单体文件开发场景)
+                    if(ignoreMissing&&/Unknown module( type)?|module\b.*\bnot found|Module\b.*\bnot found/i.test(msg))continue;
+                    var sev=/error/i.test(msg)?vscode.DiagnosticSeverity.Error:vscode.DiagnosticSeverity.Warning;
+                    ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,sev));
+                }
             }
+            applyLintDiagnostics(uri,diagColl,seq,ps);
+        }finally{
+            cleanupDir(workDir);
         }
-        diagColl.set(uri,ps);
-        try{fs.unlinkSync(path.join(fd,'a.out'));}catch(e){}
     });
 }
-function runModelsim(uri,diagColl,fp,fd){
+function runModelsim(uri,diagColl,fp,fd,seq){
     var vlog=findModelsim();
     if(!vlog)return;
     var incPaths=findIncludePaths(fp);
     var args=['/c',vlog,'-sv'];
     for(var i=0;i<incPaths.length;i++){args.push('+incdir+'+incPaths[i]);}
     args.push(fp);
-    var child=cp.spawn('cmd',args,{cwd:os.tmpdir()});
+    var workDir=fs.mkdtempSync(path.join(os.tmpdir(),'otter-modelsim-'));
+    var child=cp.spawn('cmd',args,{cwd:workDir});
     var out='';
     child.stdout.on('data',function(d){out+=d.toString();});
     child.stderr.on('data',function(d){out+=d.toString();});
+    child.on('error',function(e){clearLintDiagnostics(uri,diagColl,seq);cleanupDir(workDir);});
     child.on('close',function(code){
-        if(!out){diagColl.delete(uri);return;}
-        var ps=[];
-        // Modelsim/Questa 输出: ** Error: file.v(34): message
-        // 或 ** Warning: file.v(34): message
-        var lines=out.split(/\r?\n/);
-        for(var j=0;j<lines.length;j++){
-            var m=lines[j].match(/\*\*\s+(Error|Warning):\s+.+?\((\d+)\)\s*:\s*(.+)$/);
-            if(m){
-                var ln=parseInt(m[2])-1,msg=m[3].trim();
-                if(ln>=0)ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,m[1]==='Warning'?vscode.DiagnosticSeverity.Warning:vscode.DiagnosticSeverity.Error));
+        try{
+            if(!out){clearLintDiagnostics(uri,diagColl,seq);return;}
+            var ps=[];
+            // Modelsim/Questa 输出: ** Error: file.v(34): message
+            // 或 ** Warning: file.v(34): message
+            var lines=out.split(/\r?\n/);
+            for(var j=0;j<lines.length;j++){
+                var m=lines[j].match(/\*\*\s+(Error|Warning):\s+.+?\((\d+)\)\s*:\s*(.+)$/);
+                if(m){
+                    var ln=parseInt(m[2])-1,msg=m[3].trim();
+                    if(ln>=0)ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,m[1]==='Warning'?vscode.DiagnosticSeverity.Warning:vscode.DiagnosticSeverity.Error));
+                }
             }
+            applyLintDiagnostics(uri,diagColl,seq,ps);
+        }finally{
+            cleanupDir(workDir);
         }
-        diagColl.set(uri,ps);
     });
 }
-function runXvlog(uri,diagColl,fp,fd){
+function runXvlog(uri,diagColl,fp,fd,seq){
     var xvl=findXvlog();
     if(!xvl||xvl==='xvlog')return;
     var incPaths=findIncludePaths(fp);
@@ -424,10 +474,10 @@ function runXvlog(uri,diagColl,fp,fd){
     var out='';
     child.stdout.on('data',function(d){out+=d.toString();});
     child.stderr.on('data',function(d){out+=d.toString();});
-    child.on('error',function(e){cleanup();});
+    child.on('error',function(e){clearLintDiagnostics(uri,diagColl,seq);cleanup();});
     child.on('close',function(code){
         try{
-            if(!out){diagColl.delete(uri);return;}
+            if(!out){clearLintDiagnostics(uri,diagColl,seq);return;}
             var ps=[];
             var lines=out.split(/\r?\n/);
             for(var j=0;j<lines.length;j++){
@@ -438,7 +488,7 @@ function runXvlog(uri,diagColl,fp,fd){
                     if(ln>=0)ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,isWarn?vscode.DiagnosticSeverity.Warning:vscode.DiagnosticSeverity.Error));
                 }
             }
-            diagColl.set(uri,ps);
+            applyLintDiagnostics(uri,diagColl,seq,ps);
         }finally{
             cleanup();
         }
@@ -450,12 +500,13 @@ function doLint(uri,diagColl,force){
         if(!force && !cfg.get('autoLintOnSave',true))return;
         var fp=uri.fsPath.replace(/\\/g,'/'),fd=path.dirname(fp);
         var tool=cfg.get('lintTool','auto');
-        if(tool==='iverilog')runIverilog(uri,diagColl,fp,fd);
-        else if(tool==='xvlog')runXvlog(uri,diagColl,fp,fd);
-        else if(tool==='modelsim')runModelsim(uri,diagColl,fp,fd);
+        var seq=nextLintSeq(uri);
+        if(tool==='iverilog')runIverilog(uri,diagColl,fp,fd,seq);
+        else if(tool==='xvlog')runXvlog(uri,diagColl,fp,fd,seq);
+        else if(tool==='modelsim')runModelsim(uri,diagColl,fp,fd,seq);
         else{
-            if(findIverilog())runIverilog(uri,diagColl,fp,fd);
-            else runXvlog(uri,diagColl,fp,fd);
+            if(findIverilog())runIverilog(uri,diagColl,fp,fd,seq);
+            else runXvlog(uri,diagColl,fp,fd,seq);
         }
     } catch(e) { console.error('doLint:',e.message); }
 }
