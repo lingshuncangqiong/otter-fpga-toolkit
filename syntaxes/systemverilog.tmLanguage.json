@@ -71,14 +71,52 @@
     },
     "inst_ports": {
       "patterns": [
-        { "name": "entity.name.function", "match": "\\.\\w+(?=\\s*\\()" },
-        { "name": "variable.other.port", "match": "(?<=\\.\\w+\\s*\\(\\s*)\\w+" }
+        {
+          "name": "meta.instance.port.connection",
+          "begin": "(\\.)([A-Za-z_][A-Za-z0-9_$]*)(\\s*\\()",
+          "beginCaptures": {
+            "2": { "name": "entity.name.function" }
+          },
+          "end": "\\)",
+          "patterns": [
+            { "include": "#connection_expression" }
+          ]
+        }
+      ]
+    },
+    "connection_expression": {
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#constants" },
+        { "include": "#operators" },
+        { "include": "#keywords" },
+        { "include": "#connection_group" },
+        { "name": "variable.other.port", "match": "\\b[A-Za-z_][A-Za-z0-9_$]*\\b" }
+      ]
+    },
+    "connection_group": {
+      "patterns": [
+        {
+          "name": "meta.group.parens.systemverilog",
+          "begin": "\\(",
+          "end": "\\)",
+          "patterns": [
+            { "include": "#connection_expression" }
+          ]
+        }
       ]
     },
     "signal_assignments": {
       "patterns": [
-        { "name": "variable.other.readwrite", "match": "(?<=\\bassign\\s)\\w+(?=\\s*=)" },
-        { "name": "variable.other.readwrite", "match": "(?<=^\\s*)\\w+(?=\\s*<=)" }
+        {
+          "match": "\\b(assign)(\\s+)([A-Za-z_][A-Za-z0-9_$]*)(?=\\s*=)",
+          "captures": { "3": { "name": "variable.other.readwrite" } }
+        },
+        {
+          "match": "^\\s*([A-Za-z_][A-Za-z0-9_$]*)(?=\\s*<=)",
+          "captures": { "1": { "name": "variable.other.readwrite" } }
+        }
       ]
     }
   }

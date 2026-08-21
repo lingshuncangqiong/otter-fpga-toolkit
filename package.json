@@ -3,7 +3,7 @@
   "displayName": "Otter FPGA Toolkit - 水獭FPGA工具集",
   "description": "小水獭的FPGA开发利器：一键例化、代码排版、iverilog/xvlog语法检查、高亮、跳转、补全",
   "icon": "icon.png",
-  "version": "2.1.11",
+  "version": "2.1.12",
   "publisher": "Otter-xiaoxiaoxuwang",
   "repository": {
     "type": "git",
@@ -17,6 +17,10 @@
     "Other"
   ],
   "main": "./extension.js",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check extension.js && node --test"
+  },
   "activationEvents": [
     "onLanguage:verilog",
     "onLanguage:systemverilog",
@@ -111,15 +115,29 @@
     "commands": [
       {
         "command": "verilog-instantiate.generateInstance",
-        "title": "Verilog: 生成例化模板"
+        "title": "Verilog: 生成例化模板",
+        "enablement": "editorLangId == verilog || editorLangId == systemverilog"
       },
       {
         "command": "verilog-instantiate.xvlogLint",
-        "title": "Verilog: xvlog 检查当前文件"
+        "title": "Verilog: xvlog 检查当前文件",
+        "enablement": "editorLangId == verilog || editorLangId == systemverilog"
       },
       {
         "command": "verilog-instantiate.alignCode",
-        "title": "Verilog: 排版格式化"
+        "title": "Verilog: 排版格式化",
+        "enablement": "editorLangId == verilog || editorLangId == systemverilog"
+      },
+      {
+        "command": "verilog-instantiate.showHierarchy",
+        "title": "Verilog: 显示当前模块层次",
+        "icon": "$(type-hierarchy)",
+        "enablement": "editorLangId == verilog || editorLangId == systemverilog"
+      },
+      {
+        "command": "verilog-instantiate.refreshHierarchy",
+        "title": "Verilog: 刷新模块层次",
+        "icon": "$(refresh)"
       }
     ],
     "keybindings": [
@@ -142,18 +160,54 @@
         "command": "verilog-instantiate.alignCode",
         "key": "ctrl+l",
         "when": "editorLangId == verilog || editorLangId == systemverilog"
-      },
-      {
-        "command": "verilog-instantiate.alignCode",
-        "key": "ctrl+numpad_l",
-        "when": "editorLangId == verilog || editorLangId == systemverilog"
       }
     ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "otterFpgaPanel",
+          "title": "Otter FPGA",
+          "icon": "icon.png"
+        }
+      ]
+    },
+    "views": {
+      "otterFpgaPanel": [
+        {
+          "id": "otterFpgaHierarchy",
+          "name": "模块层次"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "otterFpgaHierarchy",
+        "contents": "当前编辑器没有可显示的 Verilog/SystemVerilog module。\n[刷新模块层次](command:verilog-instantiate.refreshHierarchy)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "verilog-instantiate.showHierarchy",
+          "when": "resourceLangId == verilog || resourceLangId == systemverilog",
+          "group": "navigation@9"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "verilog-instantiate.refreshHierarchy",
+          "when": "view == otterFpgaHierarchy",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Otter FPGA Toolkit",
       "properties": {
         "verilogInstantiate.tabSize": {
-          "type": "number",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
           "default": 4,
           "description": "缩进空格数 (例化模板 / 排版共用)"
         },
@@ -188,6 +242,30 @@
           "type": "boolean",
           "default": true,
           "description": "启用代码补全 (module/always/case/fsm 等)"
+        },
+        "verilogInstantiate.enablePortDirectionHints": {
+          "type": "boolean",
+          "default": true,
+          "description": "在 named port connection 前显示 input/output/inout 内联提示"
+        },
+        "verilogInstantiate.workspaceIndexMaxFiles": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 50000,
+          "default": 5000,
+          "description": "跨文件跳转、端口方向提示和模块层次树最多索引的 RTL 文件数"
+        },
+        "verilogInstantiate.workspaceIndexMaxFileSizeKB": {
+          "type": "integer",
+          "minimum": 64,
+          "maximum": 102400,
+          "default": 2048,
+          "description": "工作区索引允许的单个 RTL 文件最大大小（KB）；已打开文档不受此限制"
+        },
+        "verilogInstantiate.workspaceIndexExclude": {
+          "type": "string",
+          "default": "**/{.git,node_modules,.Xil,.xil,xsim.dir,work,*.gen,*.cache,*.ip_user_files,*.runs}/**",
+          "description": "工作区 RTL 索引排除 glob；默认跳过 Git/Node/Vivado 生成目录"
         },
         "verilogInstantiate.iverilogIgnoreMissingModule": {
           "type": "boolean",
