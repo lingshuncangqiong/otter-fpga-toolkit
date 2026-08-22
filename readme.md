@@ -85,7 +85,7 @@ test_module #(
 
 ### 实例连接高亮
 
-named port connection 会高亮整个表达式中的标识符，不再只识别左括号后的第一个单词。例如 `.i_rst(~w_clk_200m_locked)`、`.data(bus[3:0])`、拼接和嵌套函数表达式都会区分端口名、operator、常量及信号。
+named port/parameter connection 会高亮整个表达式，不再只识别左括号后的第一个单词。例如 `.i_rst(~w_clk_200m_locked)`、`.P_CLK_HZ(50_000_000)`、`.data(bus[3:0])`、拼接和嵌套函数表达式都会区分端口名、operator、带下划线数字、常量及信号。
 
 ### 代码补全
 
@@ -95,7 +95,9 @@ named port connection 会高亮整个表达式中的标识符，不再只识别�
 
 ### 端口方向提示（Inlay Hints）
 
-扩展会从被例化模块的 ANSI 或非 ANSI 端口声明解析方向，在连接括号内部、表达式之前显示 `input`、`output` 或 `inout`，例如 `.i_clk(input w_clk)`。三种方向统一按 6 个显示字符处理：`input/inout` 使用不可折叠空格补齐到 `output` 的宽度；实例左括号对齐时，提示后的连接名称也保持同列。提示属于 VS Code 编辑器渲染，不写入文件，也不会进入编译、综合或仿真。
+扩展会从被例化模块的 ANSI/非 ANSI 声明、Vivado `.xci` 的 `boundary.ports`、Block Design `.bd` 顶层端口以及本机 Vivado `unisims` 原语源码解析方向。普通 RTL 定义优先于同名厂商元数据。在连接括号内部、表达式之前显示 `input`、`output` 或 `inout`，例如 `.i_clk(input w_clk)`。三种方向统一按 6 个显示字符处理：`input/inout` 使用不可折叠空格补齐到 `output` 的宽度；实例左括号对齐时，提示后的连接名称也保持同列。提示属于 VS Code 编辑器渲染，不写入文件，也不会进入编译、综合或仿真。
+
+Xilinx 原语方向会根据 `verilogInstantiate.xvlogPath` 定位对应 Vivado 版本的官方 `data/verilog/src/unisims` 源码；未显式配置时沿用扩展现有的 Vivado 自动发现逻辑。`.xci` 和 `.bd` 直接读取工程已有 JSON 元数据，不调用 Vivado，也不会生成 output products。
 
 可通过 `verilogInstantiate.enablePortDirectionHints` 关闭。VS Code 自身的 `Editor › Inlay Hints: Enabled` 也必须开启。
 
@@ -137,6 +139,7 @@ named port connection 会高亮整个表达式中的标识符，不再只识别�
 otter-fpga-toolkit/
 ├── extension.js                # 主逻辑 (例化/排版/检查/跳转/补全)
 ├── rtl-parser.js               # module/port/instance 纯文本解析
+├── vendor-metadata.js          # Vivado XCI/BD 元数据与原语源码定位
 ├── workspace-features.js       # Inlay Hints、跨文件跳转和模块层次树
 ├── package.json                # 扩展配置
 ├── icon.png                    # 水獭图标

@@ -276,22 +276,37 @@ test('同一文件包含多个 module 时按光标位置选择当前根节点', 
 test('工作区索引通过 workspace.fs 读取文件并跳过超大未打开文件', async () => {
     const smallUri = {fsPath: 'C:/rtl/small.sv', path: 'C:/rtl/small.sv', toString() { return 'file:///C:/rtl/small.sv'; }};
     const largeUri = {fsPath: 'C:/rtl/large.sv', path: 'C:/rtl/large.sv', toString() { return 'file:///C:/rtl/large.sv'; }};
+    const xciUri = {fsPath: 'C:/rtl/ip/clk_wiz_0.xci', path: 'C:/rtl/ip/clk_wiz_0.xci', toString() { return 'file:///C:/rtl/ip/clk_wiz_0.xci'; }};
     const smallText = Buffer.from('module small(input i_clk); endmodule', 'utf8');
+    const xciText = Buffer.from(JSON.stringify({
+        ip_inst: {
+            xci_name: 'clk_wiz_0',
+            boundary: {ports: {clk_in1: [{direction: 'in'}], clk_out1: [{direction: 'out'}]}}
+        }
+    }), 'utf8');
     const originalFindFiles = vscodeMock.workspace.findFiles;
     const originalFs = vscodeMock.workspace.fs;
-    vscodeMock.workspace.findFiles = async () => [smallUri, largeUri];
+    vscodeMock.workspace.findFiles = async include => include.includes('xci') ? [xciUri] : [smallUri, largeUri];
     vscodeMock.workspace.fs = {
-        async stat(uri) { return {size: uri === largeUri ? 3 * 1024 * 1024 : smallText.length}; },
+        async stat(uri) {
+            if (uri === largeUri) return {size: 3 * 1024 * 1024};
+            return {size: uri === xciUri ? xciText.length : smallText.length};
+        },
         async readFile(uri) {
-            assert.equal(uri, smallUri);
-            return smallText;
+            if (uri === smallUri) return smallText;
+            if (uri === xciUri) return xciText;
+            assert.fail(`unexpected read: ${uri.fsPath}`);
         }
     };
     try {
         const index = await new features.WorkspaceModuleIndex().get();
-        assert.equal(index.fileCount, 2);
+        assert.equal(index.fileCount, 3);
         assert.equal(index.skippedLargeFileCount, 1);
-        assert.deepEqual(index.definitions.map(item => item.name), ['small']);
+        assert.deepEqual(index.definitions.map(item => item.name), ['clk_wiz_0', 'small']);
+        assert.deepEqual(
+            index.byName.get('clk_wiz_0')[0].ports.map(port => [port.name, port.direction]),
+            [['clk_in1', 'input'], ['clk_out1', 'output']]
+        );
     } finally {
         vscodeMock.workspace.findFiles = originalFindFiles;
         vscodeMock.workspace.fs = originalFs;
@@ -330,6 +345,13 @@ test('同名 module 优先选择与当前文件路径最接近的定义', () => 
     const projectA = {name: 'child', uri: {fsPath: 'C:/workspace/project_a/rtl/child.sv'}};
     const projectB = {name: 'child', uri: {fsPath: 'C:/workspace/project_b/rtl/child.sv'}};
     assert.equal(features.selectClosestDefinition([projectA, projectB], sourceUri), projectB);
+});
+
+test('普通 RTL 定义优先于同名 XCI/BD 元数据', () => {
+    const sourceUri = {fsPath: 'C:/workspace/top.sv'};
+    const rtl = {name: 'clk_wiz_0', sourceKind: 'rtl', uri: {fsPath: 'C:/workspace/rtl/clk_wiz_0.v'}};
+    const xci = {name: 'clk_wiz_0', sourceKind: 'xilinx-xci', uri: {fsPath: 'C:/workspace/clk_wiz_0.xci'}};
+    assert.equal(features.selectClosestDefinition([xci, rtl], sourceUri), rtl);
 });
 
 test('input/output/inout 方向提示使用相同显示宽度', () => {

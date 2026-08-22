@@ -3,14 +3,21 @@
 const path = require('path');
 const vscode = require('vscode');
 const {findModuleReferenceAtOffset, parseRtlDocument} = require('./rtl-parser');
+const {findVivadoPrimitiveSource, parseVendorMetadata} = require('./vendor-metadata');
 
 const RTL_SELECTOR = ['verilog', 'systemverilog'];
 const RTL_FILE_GLOB = '**/*.{v,vh,sv,svh}';
+const VENDOR_METADATA_GLOB = '**/*.{xci,bd}';
 const DEFAULT_RTL_EXCLUDE_GLOB = '**/{.git,node_modules,.Xil,.xil,xsim.dir,work,*.gen,*.cache,*.ip_user_files,*.runs}/**';
 const HIERARCHY_VIEW_ID = 'otterFpgaHierarchy';
 
 function isRtlDocument(document) {
     return !!document && RTL_SELECTOR.includes(document.languageId);
+}
+
+function isVendorMetadataDocument(document) {
+    const filePath = document?.uri?.fsPath || document?.uri?.path || '';
+    return ['.xci', '.bd'].includes(path.extname(filePath).toLowerCase());
 }
 
 function getIndexLimit() {
@@ -57,6 +64,7 @@ function createPositionAt(text) {
 function asDefinition(uri, text, moduleInfo, positionAt = createPositionAt(text)) {
     return {
         name: moduleInfo.name,
+        sourceKind: moduleInfo.sourceKind || 'rtl',
         uri,
         nameOffset: moduleInfo.nameOffset,
         endOffset: moduleInfo.endOffset,
@@ -91,12 +99,14 @@ function pathAffinity(sourceUri, targetUri) {
 
 function selectClosestDefinition(definitions, sourceUri) {
     if (!definitions || !definitions.length) return null;
-    let selected = definitions[0];
+    const rtlDefinitions = definitions.filter(definition => !definition.sourceKind || definition.sourceKind === 'rtl');
+    const candidates = rtlDefinitions.length ? rtlDefinitions : definitions;
+    let selected = candidates[0];
     let selectedScore = pathAffinity(sourceUri, selected.uri);
-    for (let i = 1; i < definitions.length; i++) {
-        const score = pathAffinity(sourceUri, definitions[i].uri);
+    for (let i = 1; i < candidates.length; i++) {
+        const score = pathAffinity(sourceUri, candidates[i].uri);
         if (score > selectedScore) {
-            selected = definitions[i];
+            selected = candidates[i];
             selectedScore = score;
         }
     }
@@ -108,10 +118,11 @@ function formatDirectionHint(direction) {
 }
 
 class WorkspaceModuleIndex {
-    constructor() {
+    constructor(findXvlog) {
         this.cache = null;
         this.buildPromise = null;
         this.generation = 0;
+        this.findXvlog = findXvlog;
     }
 
     invalidate() {
@@ -137,6 +148,12 @@ class WorkspaceModuleIndex {
         const uriMap = new Map();
         const files = await vscode.workspace.findFiles(RTL_FILE_GLOB, getIndexExcludeGlob(), getIndexLimit());
         for (const uri of files) uriMap.set(uri.toString(), uri);
+        const metadataFiles = await vscode.workspace.findFiles(
+            VENDOR_METADATA_GLOB,
+            getIndexExcludeGlob(),
+            getIndexLimit()
+        );
+        for (const uri of metadataFiles) uriMap.set(uri.toString(), uri);
         const openDocuments = new Map();
         for (const document of vscode.workspace.textDocuments) {
             if (!isRtlDocument(document)) continue;
@@ -160,13 +177,46 @@ class WorkspaceModuleIndex {
                 const text = document
                     ? document.getText()
                     : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
-                const structure = parseRtlDocument(text);
                 const toPosition = document ? offset => document.positionAt(offset) : createPositionAt(text);
-                for (const moduleInfo of structure.modules) {
+                const filePath = uri.fsPath || uri.path || '';
+                const metadata = parseVendorMetadata(text, filePath);
+                const moduleInfos = metadata ? [metadata] : parseRtlDocument(text).modules;
+                for (const moduleInfo of moduleInfos) {
                     definitions.push(asDefinition(uri, text, moduleInfo, toPosition));
                 }
             } catch (error) {
                 console.warn('Otter workspace index skipped:', uri.toString(), error.message);
+            }
+        }
+
+        const knownNames = new Set(definitions.map(definition => definition.name));
+        if (typeof this.findXvlog === 'function') {
+            const unresolvedTypes = new Set();
+            for (const definition of definitions) {
+                for (const instance of definition.instances) {
+                    if (!knownNames.has(instance.typeName)) unresolvedTypes.add(instance.typeName);
+                }
+            }
+            let xvlogPath = null;
+            try { xvlogPath = this.findXvlog(); } catch (error) {
+                console.warn('Otter Vivado primitive lookup unavailable:', error.message);
+            }
+            for (const typeName of unresolvedTypes) {
+                const sourcePath = findVivadoPrimitiveSource(typeName, xvlogPath);
+                if (!sourcePath) continue;
+                try {
+                    const uri = vscode.Uri.file(sourcePath);
+                    const text = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+                    const moduleInfo = parseRtlDocument(text).modules.find(module => module.name === typeName);
+                    if (!moduleInfo) continue;
+                    definitions.push(asDefinition(uri, text, {
+                        ...moduleInfo,
+                        sourceKind: 'xilinx-primitive'
+                    }));
+                    knownNames.add(typeName);
+                } catch (error) {
+                    console.warn('Otter Vivado primitive skipped:', sourcePath, error.message);
+                }
             }
         }
 
@@ -362,8 +412,8 @@ class ModuleHierarchyProvider {
     }
 }
 
-function registerWorkspaceFeatures(context, findLocalDefinition) {
-    const moduleIndex = new WorkspaceModuleIndex();
+function registerWorkspaceFeatures(context, findLocalDefinition, findXvlog) {
+    const moduleIndex = new WorkspaceModuleIndex(findXvlog);
     const inlayProvider = new PortDirectionInlayProvider(moduleIndex);
     const hierarchyProvider = new ModuleHierarchyProvider(moduleIndex);
     let hierarchyRefreshTimer = null;
@@ -404,12 +454,19 @@ function registerWorkspaceFeatures(context, findLocalDefinition) {
     context.subscriptions.push(vscode.commands.registerCommand('verilog-instantiate.refreshHierarchy', refresh));
 
     const watcher = vscode.workspace.createFileSystemWatcher(RTL_FILE_GLOB);
+    const metadataWatcher = vscode.workspace.createFileSystemWatcher(VENDOR_METADATA_GLOB);
     context.subscriptions.push(
         watcher,
         watcher.onDidCreate(refresh),
         watcher.onDidChange(refresh),
         watcher.onDidDelete(refresh),
-        vscode.workspace.onDidSaveTextDocument(document => { if (isRtlDocument(document)) refresh(); }),
+        metadataWatcher,
+        metadataWatcher.onDidCreate(refresh),
+        metadataWatcher.onDidChange(refresh),
+        metadataWatcher.onDidDelete(refresh),
+        vscode.workspace.onDidSaveTextDocument(document => {
+            if (isRtlDocument(document) || isVendorMetadataDocument(document)) refresh();
+        }),
         vscode.workspace.onDidChangeWorkspaceFolders(refresh),
         vscode.window.onDidChangeActiveTextEditor(scheduleHierarchyRefresh),
         vscode.window.onDidChangeTextEditorSelection(scheduleHierarchyRefresh),

@@ -95,7 +95,7 @@ test('例化端口格式化保留逗号和注释', () => {
 test('manifest 保留命令和快捷键，并贡献层次树及提示设置', () => {
     const root = path.resolve(__dirname, '..');
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    assert.equal(manifest.version, '2.1.12');
+    assert.equal(manifest.version, '2.1.13');
     assert.deepEqual(
         manifest.contributes.commands.map(item => item.command),
         [

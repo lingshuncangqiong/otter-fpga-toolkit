@@ -11,7 +11,7 @@
 | **名称** | Otter FPGA Toolkit (水獭FPGA工具集) |
 | **扩展名** | `otter-fpga-toolkit` |
 | **Publisher** | `Otter-xiaoxiaoxuwang` |
-| **版本** | `2.1.12` |
+| **版本** | `2.1.13` |
 | **GitHub** | `https://github.com/lingshuncangqiong/otter-fpga-toolkit` |
 | **VSCode 引擎** | `^1.75.0` |
 | **许可** | MIT |
@@ -29,6 +29,7 @@ Otter-FPGA-Toolkit/
 ├── PROJECT.md                  ← 本文件（项目上下文与历史）
 ├── extension.js                ← 扩展主逻辑
 ├── rtl-parser.js               ← module/port/instance 纯解析层
+├── vendor-metadata.js          ← Vivado XCI/BD 端口元数据与原语源码定位
 ├── workspace-features.js       ← 工作区索引、Inlay Hints、F12 和层次树
 ├── package.json                ← VS Code 扩展清单
 ├── icon.png
@@ -46,8 +47,9 @@ Otter-FPGA-Toolkit/
 ├── test/
 │   ├── extension.test.js       ← 原有命令/格式化/manifest 回归
 │   ├── rtl-parser.test.js      ← ANSI/非 ANSI module、实例和 grammar 回归
+│   ├── vendor-metadata.test.js ← XCI/BD 端口方向与 Vivado 原语定位回归
 │   └── workspace-features.test.js ← Inlay/F12/层次树 provider 回归
-└── otter-fpga-toolkit-2.1.12.vsix  ← 当前本地发布包，Git 忽略
+└── otter-fpga-toolkit-2.1.13.vsix  ← 当前本地发布包，Git 忽略
 ```
 
 > **唯一入口**：自 2026-08-21 起，本仓库根目录同时承担开发、测试、GitHub 推送和 VSIX 发布，不再维护 `2-dev` / `1-release` 双副本。
@@ -171,15 +173,15 @@ activate()
 
 ## 当前发布状态 / 接手重点
 
-- 当前最新版本：`2.1.12`
-- 当前 GitHub main 发布提交：以 `git log` 中最新的 `v2.1.12` 提交为准
+- 当前最新版本：`2.1.13`
+- 当前 GitHub main 发布提交：以 `git log` 中最新的 `v2.1.13` 提交为准
 - 本仓库以 `main` 跟踪 `origin/main`；开始修改前检查 `git status --short --branch` 和当前 diff
 - `origin` 必须保持 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 - GitHub SSH key 名称：`Codex Windows`
 - GitHub 发布已经可以走 SSH，不再依赖 HTTPS token / PAT URL
 - VS Code Marketplace 暂不走自动 `vsce publish`：用户创建 Azure DevOps organization 会卡银行卡/订阅；采用手动上传 VSIX
 - Marketplace 手动上传页面：`https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang`
-- 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.12.vsix`
+- 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.13.vsix`
 - 发布后仓库根目录只保留当前最终 VSIX；测试包输出到仓库外的临时路径
 - 旧目录中的迁移备份与凭据继续留在仓库外，不作为当前开发入口
 
@@ -246,6 +248,19 @@ git push origin main
 8. **Marketplace 手动上传** — 当前用户无法走 Azure DevOps PAT 自动发布，除非用户以后明确说已准备好 Marketplace PAT
 9. **中间文件清理** — 每次发布后仓库根目录只保留当前 `otter-fpga-toolkit-X.Y.Z.vsix`，测试包和旧版本包不进入 Git
 10. **迁移遗留隔离** — 旧位置保留的未受 Git 管理副本、备份和凭据不是开发入口，未经用户明确授权不得删除或重新并入本仓库
+
+---
+
+## v2.1.13 改动记录
+
+- 用户已完成候选包安装验证并授权发布；版本号更新为 `2.1.13`。
+- 工作区索引新增 Vivado `.xci` / `.bd` JSON 元数据：从 `boundary.ports`、BD scalar ports 和 interface `port_maps` 获取真实方向。
+- 对仍未解析的例化类型，按现有 `xvlogPath` / Vivado 自动发现结果读取对应版本的官方 `data/verilog/src/unisims` / `unimacro` 原语声明；不运行 Vivado、不生成 output products。
+- 普通 RTL `module` 定义优先于同名 XCI/BD/原语元数据，保持既有多工程路径亲和选择行为。
+- 修复 Vivado 原语 module header 中条件编译指令遮断 ANSI 端口解析的问题。
+- Verilog/SystemVerilog grammar 的普通十进制/实数支持下划线分隔符，`.P_CLK_HZ(50_000_000)` 可完整高亮。
+- `XCZU7EV_TOP.v` 只读验证：`clk_wiz_0` 4/4、`user_ms72xx_control` 38/38、两个 `IOBUF` 各 4/4、`BUFG` 2/2、`video_pcie_subsystem_wrapper` 15/15 连接均匹配到真实方向。
+- 发布验证：8 个 JS 文件 `node --check` PASS；`npm run check` 26/26 PASS；7 个 JSON 解析与 `git diff --check` PASS；最终 `otter-fpga-toolkit-2.1.13.vsix` 的版本、16 项内容、运行时哈希和凭据排除审查 PASS；用户已确认 VS Code 中的最终显示效果。
 
 ---
 
@@ -479,5 +494,5 @@ git push origin main
 11. **GitHub** — repo: `lingshuncangqiong/otter-fpga-toolkit`，`origin` 是 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 12. **activationEvents 警告** — VSCode 提示可删除，但 `vsce` 打包仍需保留，忽略即可
 13. **凭据** — GitHub 推送只使用现有 SSH 认证；不得使用旧 PAT 或把凭据写入 remote URL
-14. **当前发布包** — 仓库根目录保留 `otter-fpga-toolkit-2.1.12.vsix`
+14. **当前发布包** — 仓库根目录保留 `otter-fpga-toolkit-2.1.13.vsix`
 15. **清理状态** — 当前仓库采用单一真源；测试 VSIX 放在仓库外，根目录只保留最终发布包

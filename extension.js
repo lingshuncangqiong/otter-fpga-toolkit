@@ -66,7 +66,7 @@ function cleanupDir(dir){
 function activate(context) {
     const diagColl = vscode.languages.createDiagnosticCollection('verilog-xvlog');
     context.subscriptions.push(diagColl);
-    registerWorkspaceFeatures(context,findDecl);
+    registerWorkspaceFeatures(context,findDecl,findXvlog);
 
     //===== 例化 =====
     context.subscriptions.push(vscode.commands.registerCommand('verilog-instantiate.generateInstance', async () => {

@@ -100,6 +100,25 @@ endmodule
     );
 });
 
+test('Vivado 原语 module header 中的条件编译指令不遮断 ANSI 端口', () => {
+    const source = `
+module BUFG
+\`ifdef XIL_TIMING
+#(parameter LOC = "UNPLACED")
+\`endif
+(
+    output O,
+    input  I
+);
+endmodule
+`;
+    const structure = parseRtlDocument(source);
+    assert.deepEqual(
+        structure.modules[0].ports.map(item => [item.name, item.direction]),
+        [['O', 'output'], ['I', 'input']]
+    );
+});
+
 test('Verilog/SystemVerilog grammar 使用递归连接表达式且不再依赖端口 lookbehind', () => {
     const root = path.resolve(__dirname, '..');
     for (const name of ['verilog.tmLanguage.json', 'systemverilog.tmLanguage.json']) {
@@ -114,6 +133,11 @@ test('Verilog/SystemVerilog grammar 使用递归连接表达式且不再依赖�
             )
         );
         assert.equal(grammar.repository.connection_group.patterns[0].patterns[0].include, '#connection_expression');
+        assert.match(new RegExp(instPort.begin).exec('.P_CLK_HZ (')[0], /P_CLK_HZ/);
+        const decimalPattern = grammar.repository.constants.patterns.find(
+            item => item.match.includes('\\d[\\d_]*')
+        );
+        assert.equal(new RegExp(decimalPattern.match).exec('50_000_000')[0], '50_000_000');
         assert.doesNotMatch(JSON.stringify(grammar.repository.inst_ports), /\(\?<=/);
         assert.doesNotMatch(JSON.stringify(grammar.repository.signal_assignments), /\(\?<=/);
     }

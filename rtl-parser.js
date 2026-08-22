@@ -21,6 +21,17 @@ function skipWhitespace(text, offset, limit = text.length) {
     return cursor;
 }
 
+function skipWhitespaceAndDirectives(text, offset, limit = text.length) {
+    let cursor = offset;
+    while (cursor < limit) {
+        cursor = skipWhitespace(text, cursor, limit);
+        if (text[cursor] !== '`') return cursor;
+        const lineEnd = text.indexOf('\n', cursor);
+        cursor = lineEnd >= 0 && lineEnd < limit ? lineEnd + 1 : limit;
+    }
+    return cursor;
+}
+
 function readIdentifier(text, offset, limit = text.length) {
     if (offset >= limit || !isIdentifierStart(text[offset])) return null;
     let end = offset + 1;
@@ -187,13 +198,13 @@ function lastIdentifier(text, start, end) {
 }
 
 function parsePortDirections(masked, nameEnd, headerEnd) {
-    let cursor = skipWhitespace(masked, nameEnd, headerEnd);
+    let cursor = skipWhitespaceAndDirectives(masked, nameEnd, headerEnd);
     if (masked[cursor] === '#') {
-        cursor = skipWhitespace(masked, cursor + 1, headerEnd);
+        cursor = skipWhitespaceAndDirectives(masked, cursor + 1, headerEnd);
         if (masked[cursor] !== '(') return [];
         const parameterClose = findMatching(masked, cursor, '(', ')', headerEnd + 1);
         if (parameterClose < 0) return [];
-        cursor = skipWhitespace(masked, parameterClose + 1, headerEnd);
+        cursor = skipWhitespaceAndDirectives(masked, parameterClose + 1, headerEnd);
     }
     if (masked[cursor] !== '(') return [];
     const portClose = findMatching(masked, cursor, '(', ')', headerEnd + 1);
