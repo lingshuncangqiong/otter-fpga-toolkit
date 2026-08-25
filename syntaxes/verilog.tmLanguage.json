@@ -81,6 +81,17 @@
           "patterns": [
             { "include": "#connection_expression" }
           ]
+        },
+        {
+          "name": "meta.instance.port.connection.multiline",
+          "begin": "^\\s*(\\.)([A-Za-z_][A-Za-z0-9_$]*)\\s*$",
+          "beginCaptures": {
+            "2": { "name": "entity.name.function" }
+          },
+          "end": "\\)(?=\\s*,?\\s*(?://.*)?$)",
+          "patterns": [
+            { "include": "#connection_expression_flat" }
+          ]
         }
       ]
     },
@@ -92,6 +103,16 @@
         { "include": "#operators" },
         { "include": "#keywords" },
         { "include": "#connection_group" },
+        { "name": "variable.other.port", "match": "\\b[A-Za-z_][A-Za-z0-9_$]*\\b" }
+      ]
+    },
+    "connection_expression_flat": {
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#constants" },
+        { "include": "#operators" },
+        { "include": "#keywords" },
         { "name": "variable.other.port", "match": "\\b[A-Za-z_][A-Za-z0-9_$]*\\b" }
       ]
     },

@@ -85,7 +85,7 @@ test_module #(
 
 ### 实例连接高亮
 
-named port/parameter connection 会高亮整个表达式，不再只识别左括号后的第一个单词。例如 `.i_rst(~w_clk_200m_locked)`、`.P_CLK_HZ(50_000_000)`、`.data(bus[3:0])`、拼接和嵌套函数表达式都会区分端口名、operator、带下划线数字、常量及信号。
+named port/parameter connection 会高亮整个表达式，不再只识别左括号后的第一个单词。例如 `.i_rst(~w_clk_200m_locked)`、`.P_CLK_HZ(50_000_000)`、`.data(bus[3:0])`、拼接和嵌套函数表达式都会区分端口名、operator、带下划线数字、常量及信号。端口/参数名独占一行、连接括号和表达式位于下一行的排版也会保持同样高亮。
 
 ### 代码补全
 

@@ -124,6 +124,7 @@ test('Verilog/SystemVerilog grammar 使用递归连接表达式且不再依赖�
     for (const name of ['verilog.tmLanguage.json', 'systemverilog.tmLanguage.json']) {
         const grammar = JSON.parse(fs.readFileSync(path.join(root, 'syntaxes', name), 'utf8'));
         const instPort = grammar.repository.inst_ports.patterns[0];
+        const multilineInstPort = grammar.repository.inst_ports.patterns[1];
         assert.equal(instPort.name, 'meta.instance.port.connection');
         assert.match(instPort.begin, /A-Za-z_/);
         assert.equal(instPort.patterns[0].include, '#connection_expression');
@@ -138,6 +139,16 @@ test('Verilog/SystemVerilog grammar 使用递归连接表达式且不再依赖�
             item => item.match.includes('\\d[\\d_]*')
         );
         assert.equal(new RegExp(decimalPattern.match).exec('50_000_000')[0], '50_000_000');
+        assert.equal(multilineInstPort.name, 'meta.instance.port.connection.multiline');
+        const multilineBegin = new RegExp(multilineInstPort.begin).exec('    .P_DEBUG_TELEMETRY_ENABLE');
+        assert.equal(multilineBegin[2], 'P_DEBUG_TELEMETRY_ENABLE');
+        assert.ok(new RegExp(multilineInstPort.end).test('    (P_DEBUG_TELEMETRY_ENABLE)'));
+        assert.equal(multilineInstPort.patterns[0].include, '#connection_expression_flat');
+        assert.ok(
+            grammar.repository.connection_expression_flat.patterns.some(
+                item => item.name === 'variable.other.port'
+            )
+        );
         assert.doesNotMatch(JSON.stringify(grammar.repository.inst_ports), /\(\?<=/);
         assert.doesNotMatch(JSON.stringify(grammar.repository.signal_assignments), /\(\?<=/);
     }
