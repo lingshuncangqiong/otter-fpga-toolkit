@@ -147,6 +147,7 @@ function offsetAt(text, position) {
 
 function createDocument(text, path = 'C:/rtl/top.sv') {
     const uri = {fsPath: path, path, toString() { return `file:///${path}`; }};
+    const lines = text.split('\n');
     return {
         languageId: 'systemverilog',
         uri,
@@ -162,6 +163,7 @@ function createDocument(text, path = 'C:/rtl/top.sv') {
             while (end < text.length && /[A-Za-z0-9_$]/.test(text[end])) end++;
             return new Range(positionAt(text, start), positionAt(text, end));
         },
+        lineAt(line) { return {text: lines[line] || ''}; },
         offsetAt(position) { return offsetAt(text, position); },
         positionAt(offset) { return positionAt(text, offset); }
     };
@@ -217,6 +219,72 @@ test('Inlay Hints 在 named connection 括号内显示 input/output', async () =
     assert.match(hints[1].tooltip, /child\.i_rst/);
     const firstConnection = TOP_SOURCE.indexOf('(', TOP_SOURCE.indexOf('.i_clk')) + 1;
     assert.deepEqual(hints[0].position, positionAt(TOP_SOURCE, firstConnection));
+    provider.dispose();
+});
+
+test('参数和端口 Inlay Hints 使用相同宽度并保持上下对称', async () => {
+    const source = `
+module top;
+    child #(
+        .P_WIDTH (8),
+        .P_MODE  ("FAST")
+    ) U0 (
+        .i_clk (clk),
+        .o_data(data)
+    );
+endmodule
+`;
+    const document = createDocument(source);
+    const {child, index} = createIndex();
+    child.ports = [
+        {name: 'i_clk', direction: 'input'},
+        {name: 'o_data', direction: 'output'}
+    ];
+    const provider = new features.PortDirectionInlayProvider({async get() { return index; }});
+    const hints = await provider.provideInlayHints(
+        document,
+        new Range(new Position(0, 0), new Position(99, 0)),
+        {isCancellationRequested: false}
+    );
+    assert.deepEqual(
+        hints.map(hint => hint.label),
+        ['param\u00a0', 'param\u00a0', 'input\u00a0', 'output']
+    );
+    assert.ok(hints.every(hint => hint.label.length === 6));
+    assert.match(hints[0].tooltip, /parameter/);
+    provider.dispose();
+});
+
+test('多行 inout 连接在后续内容行重复方向以保持对齐', async () => {
+    const source = `
+module top;
+    wrapper U0 (
+        .sensor_gpio_tri_io ({io_sensor_pwdn,
+                              io_sensor_rst_n})
+    );
+endmodule
+`;
+    const document = createDocument(source);
+    const definition = {
+        name: 'wrapper',
+        uri: {fsPath: 'C:/rtl/wrapper.bd'},
+        ports: [{name: 'sensor_gpio_tri_io', direction: 'inout'}],
+        instances: []
+    };
+    const index = {definitions: [definition], byName: new Map([['wrapper', [definition]]])};
+    const provider = new features.PortDirectionInlayProvider({async get() { return index; }});
+    const hints = await provider.provideInlayHints(
+        document,
+        new Range(new Position(0, 0), new Position(99, 0)),
+        {isCancellationRequested: false}
+    );
+    assert.deepEqual(hints.map(hint => hint.label), ['inout\u00a0', 'inout\u00a0']);
+    assert.deepEqual(
+        hints[1].position,
+        positionAt(source, source.indexOf('io_sensor_rst_n'))
+    );
+    assert.ok(hints.every(hint => hint.paddingRight));
+    assert.match(hints[1].tooltip, /多行连接续行/);
     provider.dispose();
 });
 
@@ -358,4 +426,5 @@ test('input/output/inout 方向提示使用相同显示宽度', () => {
     const labels = ['input', 'output', 'inout'].map(features.formatDirectionHint);
     assert.deepEqual(labels, ['input\u00a0', 'output', 'inout\u00a0']);
     assert.ok(labels.every(label => label.length === 6));
+    assert.equal(features.formatParameterHint(), 'param\u00a0');
 });

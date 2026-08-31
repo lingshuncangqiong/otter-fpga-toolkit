@@ -117,6 +117,43 @@ function formatDirectionHint(direction) {
     return direction.padEnd(6, '\u00a0');
 }
 
+function formatParameterHint() {
+    return formatDirectionHint('param');
+}
+
+function continuationHintPositions(document, connection) {
+    const start = document.positionAt(connection.expressionStart);
+    const end = document.positionAt(connection.expressionEnd);
+    const positions = [];
+    for (let line = start.line + 1; line <= end.line; line++) {
+        const lineText = document.lineAt(line).text;
+        const limit = line === end.line ? Math.min(end.character, lineText.length) : lineText.length;
+        const candidate = lineText.slice(0, limit);
+        const code = candidate.replace(/\/\/.*$/, '');
+        if (!/[A-Za-z0-9_$"'~!]/.test(code)) continue;
+        const firstToken = /\S/.exec(candidate);
+        if (firstToken) positions.push(new vscode.Position(line, firstToken.index));
+    }
+    return positions;
+}
+
+function appendConnectionHints(hints, document, range, connection, label, tooltip) {
+    const position = document.positionAt(connection.expressionStart);
+    if (range.contains(position)) {
+        const hint = new vscode.InlayHint(position, label, vscode.InlayHintKind.Type);
+        hint.paddingRight = true;
+        hint.tooltip = tooltip;
+        hints.push(hint);
+    }
+    for (const continuation of continuationHintPositions(document, connection)) {
+        if (!range.contains(continuation)) continue;
+        const continuationHint = new vscode.InlayHint(continuation, label, vscode.InlayHintKind.Type);
+        continuationHint.paddingRight = true;
+        continuationHint.tooltip = `${tooltip}（多行连接续行）`;
+        hints.push(continuationHint);
+    }
+}
+
 class WorkspaceModuleIndex {
     constructor(findXvlog) {
         this.cache = null;
@@ -293,6 +330,16 @@ class PortDirectionInlayProvider {
         const hints = [];
         for (const moduleInfo of structure.modules) {
             for (const instance of moduleInfo.instances) {
+                for (const parameter of instance.parameterConnections || []) {
+                    appendConnectionHints(
+                        hints,
+                        document,
+                        range,
+                        parameter,
+                        formatParameterHint(),
+                        `${instance.typeName}.${parameter.portName} — parameter`
+                    );
+                }
                 const definition = localByName.get(instance.typeName)
                     || selectClosestDefinition(index.byName.get(instance.typeName), document.uri);
                 if (!definition) continue;
@@ -300,16 +347,14 @@ class PortDirectionInlayProvider {
                 for (const connection of instance.connections) {
                     const port = ports.get(connection.portName);
                     if (!port) continue;
-                    const position = document.positionAt(connection.expressionStart);
-                    if (!range.contains(position)) continue;
-                    const hint = new vscode.InlayHint(
-                        position,
+                    appendConnectionHints(
+                        hints,
+                        document,
+                        range,
+                        connection,
                         formatDirectionHint(port.direction),
-                        vscode.InlayHintKind.Type
+                        `${instance.typeName}.${connection.portName} — ${port.direction}`
                     );
-                    hint.paddingRight = true;
-                    hint.tooltip = `${instance.typeName}.${connection.portName} — ${port.direction}`;
-                    hints.push(hint);
                 }
             }
         }
@@ -490,5 +535,7 @@ module.exports = {
     provideWorkspaceDefinition,
     registerWorkspaceFeatures,
     selectClosestDefinition,
-    formatDirectionHint
+    formatDirectionHint,
+    formatParameterHint,
+    continuationHintPositions
 };

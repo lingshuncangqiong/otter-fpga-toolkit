@@ -7,13 +7,13 @@
 | 功能 | 快捷键/触发 | 说明 |
 |------|-----------|------|
 | 一键例化 | `Ctrl+1` | 选中 module 声明，自动生成带注释对齐的例化模板 |
-| 代码排版 | `Ctrl+L` | 信号声明/例化端口自动对齐，统一注释格式 `,// 注释` |
+| 代码排版 | `Ctrl+L` | 信号声明/例化端口按实际缩进自动对齐，统一注释格式 `,// 注释` |
 | 语法检查 | 保存自动 | 支持 Icarus Verilog / Vivado xvlog / ModelSim-Questa vlog |
 | 语法高亮 | 自动 | Verilog/SystemVerilog + SDC/XDC/CST 约束文件 |
 | 定义跳转 | `F12` | 跳转到本地信号/参数，或跨文件跳转到例化模块定义 |
 | 悬停提示 | 鼠标悬停 | 显示定义行号 + 原代码 |
 | 代码补全 | 输入提示 | 25+ 模板 (module/always/case/fsm) + 当前文件信号名 |
-| 端口方向提示 | 自动 | 在 named port connection 的括号内显示 `input` / `output` / `inout`，不修改 RTL 文本 |
+| 参数/端口提示 | 自动 | 在 named connection 的括号内显示 `param` / `input` / `output` / `inout`，不修改 RTL 文本 |
 | 模块层次树 | 编辑器右上角层次图标 | 点击后自动打开底部 `Otter FPGA` Panel，只展开当前 module |
 
 ## 安装方法
@@ -95,9 +95,9 @@ named port/parameter connection 会高亮整个表达式，不再只识别左括
 
 ### 端口方向提示（Inlay Hints）
 
-扩展会从被例化模块的 ANSI/非 ANSI 声明、Vivado `.xci` 的 `boundary.ports`、Block Design `.bd` 顶层端口以及本机 Vivado `unisims` 原语源码解析方向。普通 RTL 定义优先于同名厂商元数据。在连接括号内部、表达式之前显示 `input`、`output` 或 `inout`，例如 `.i_clk(input w_clk)`。三种方向统一按 6 个显示字符处理：`input/inout` 使用不可折叠空格补齐到 `output` 的宽度；实例左括号对齐时，提示后的连接名称也保持同列。提示属于 VS Code 编辑器渲染，不写入文件，也不会进入编译、综合或仿真。
+实例参数在 `#(...)` 的连接括号内部显示 `param`，例如 `.P_WIDTH(param 8)`；普通端口则从被例化模块的 ANSI/非 ANSI 声明、Vivado `.xci` 的 `boundary.ports`、Block Design `.bd` 顶层端口以及本机 Vivado `unisims` 原语源码解析 `input`、`output` 或 `inout`。普通 RTL 定义优先于同名厂商元数据。四种标签统一按6个显示字符处理；多行连接会在后续有内容的行重复显示同一标签，使表达式继续对齐，空行和仅有结束括号的行不添加。提示属于 VS Code 编辑器渲染，不写入文件，也不会进入编译、综合或仿真。
 
-Xilinx 原语方向会根据 `verilogInstantiate.xvlogPath` 定位对应 Vivado 版本的官方 `data/verilog/src/unisims` 源码；未显式配置时沿用扩展现有的 Vivado 自动发现逻辑。`.xci` 和 `.bd` 直接读取工程已有 JSON 元数据，不调用 Vivado，也不会生成 output products。
+Xilinx 原语方向会根据 `verilogInstantiate.xvlogPath` 定位对应 Vivado 版本的官方 `data/verilog/src/unisims` 源码；未显式配置时沿用扩展现有的 Vivado 自动发现逻辑。`.xci` 和 `.bd` 直接读取工程已有 JSON 元数据，不调用 Vivado，也不会生成 output products。对于 BD 中成组的 `*_I / *_O / *_T` 三态接口，扩展会按 Vivado wrapper 规则合成为 `*_io`，并显示为 `inout`。
 
 可通过 `verilogInstantiate.enablePortDirectionHints` 关闭。VS Code 自身的 `Editor › Inlay Hints: Enabled` 也必须开启。
 
@@ -126,7 +126,7 @@ Xilinx 原语方向会根据 `verilogInstantiate.xvlogPath` 定位对应 Vivado 
 | `verilogInstantiate.lintOnOpen` | `false` | 打开文件时自动检查 |
 | `verilogInstantiate.lintOnActiveEditorChange` | `false` | 切换到 Verilog/SystemVerilog 编辑器时自动检查 |
 | `verilogInstantiate.enableCompletion` | `true` | 启用代码补全 |
-| `verilogInstantiate.enablePortDirectionHints` | `true` | 显示实例端口的 input/output/inout 内联提示 |
+| `verilogInstantiate.enablePortDirectionHints` | `true` | 显示实例参数和端口的 param/input/output/inout 内联提示 |
 | `verilogInstantiate.workspaceIndexMaxFiles` | `5000` | 工作区最多索引的 RTL 文件数 |
 | `verilogInstantiate.workspaceIndexMaxFileSizeKB` | `2048` | 未打开 RTL 文件的索引大小上限（KB） |
 | `verilogInstantiate.workspaceIndexExclude` | Vivado/工具生成目录 glob | 工作区索引排除规则 |

@@ -291,11 +291,14 @@ function parseInstances(masked, start, end) {
         if (INSTANCE_KEYWORDS.has(typeName) || previous === '.' || previous === '$' || previous === '`') continue;
 
         let cursor = skipWhitespace(masked, typeOffset + typeName.length, end);
+        let parameterConnections = [];
         if (masked[cursor] === '#') {
             cursor = skipWhitespace(masked, cursor + 1, end);
             if (masked[cursor] !== '(') continue;
+            const parameterOpen = cursor;
             const parameterClose = findMatching(masked, cursor, '(', ')', end);
             if (parameterClose < 0) continue;
+            parameterConnections = parseNamedConnections(masked, parameterOpen, parameterClose);
             cursor = skipWhitespace(masked, parameterClose + 1, end);
         }
 
@@ -316,6 +319,7 @@ function parseInstances(masked, start, end) {
             typeOffset,
             instanceName: instanceName.name,
             instanceNameOffset: instanceName.start,
+            parameterConnections,
             connectionOpen: cursor,
             connectionClose,
             connections: parseNamedConnections(masked, cursor, connectionClose)

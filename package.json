@@ -246,7 +246,7 @@
         "verilogInstantiate.enablePortDirectionHints": {
           "type": "boolean",
           "default": true,
-          "description": "在 named port connection 前显示 input/output/inout 内联提示"
+          "description": "在 named parameter/port connection 前显示 param/input/output/inout 内联提示"
         },
         "verilogInstantiate.workspaceIndexMaxFiles": {
           "type": "integer",

@@ -251,6 +251,18 @@ git push origin main
 
 ---
 
+## 当前开发改动（未发布）
+
+- 版本号保持 `2.1.14`，正式 VSIX 不覆盖。
+- Vivado BD 元数据解析新增 wrapper 三态端口合成：同组 `*_I / *_O / *_T` 且方向为 input/output/output、位宽一致时，生成对应 `*_io : inout`。
+- 用 `otter_zu7ev_lab.bd` 和 `otter_zu7ev_lab_top.v` 验证 `sensor_gpio_tri_io`、`sensor_iic_scl_io`、`sensor_iic_sda_io` 的实际方向来源。
+- 多行端口连接的 Inlay Hint 会在后续有表达式内容的行重复显示同一方向，修复 `{io_sensor_pwdn, io_sensor_rst_n}` 因首行 `inout` 提示产生的视觉错位；不再使用会触发 VS Code 标签复用异常的纯空白 hint，也不修改 RTL 文本。
+- Ctrl+L 例化列改为按实际缩进宽度分组计算，修复 `tabSize` 与源码缩进不一致时最长参数名的左括号偏移；无逗号末行不再添加尾随空格。
+- 实例解析保留 `#(...)` 内的 named parameter connections，Inlay Hint 在参数表达式前显示与方向标签同宽的 `param`，消除参数区与端口区的视觉不对称；沿用现有总开关且不修改 RTL 文本。
+- 当前验证：`npm run check` 30/30 PASS；参数 `param` 与 `input/output/inout` 标签同为6字符宽且按源码顺序生成；真实 BD/顶层的三个目标端口均解析为 `inout`；多行与单行 Inlay Hint 回归 PASS；Ctrl+L 在 `tabSize=2`、源码缩进4空格的实例中左右括号列一致且无尾随空格；仓库外测试 VSIX 打包与内容审查 PASS。VS Code 实际显示和 Ctrl+L 编辑效果等待用户安装验证。
+
+---
+
 ## v2.1.14 改动记录
 
 - 用户已完成候选包安装验证并授权发布；版本号更新为 `2.1.14`。

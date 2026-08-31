@@ -28,6 +28,41 @@ function addPort(portMap, text, name, rawDirection) {
     });
 }
 
+function addTriStateWrapperPorts(portMap, text, interfacePort) {
+    const groups = new Map();
+    for (const [logicalName, port] of Object.entries(interfacePort?.port_maps || {})) {
+        const logicalMatch = /^(.*)_(I|O|T)$/i.exec(logicalName);
+        const physicalName = port && port.physical_name;
+        if (!logicalMatch || !physicalName) continue;
+        const suffix = `_${logicalMatch[2].toLowerCase()}`;
+        if (!physicalName.toLowerCase().endsWith(suffix)) continue;
+        const physicalBase = physicalName.slice(0, -suffix.length);
+        const key = `${logicalMatch[1].toLowerCase()}\u0000${physicalBase.toLowerCase()}`;
+        const group = groups.get(key) || {};
+        group[logicalMatch[2].toLowerCase()] = port;
+        groups.set(key, group);
+    }
+
+    for (const group of groups.values()) {
+        if (!group.i || !group.o || !group.t) continue;
+        if (normalizeDirection(group.i.direction) !== 'input'
+            || normalizeDirection(group.o.direction) !== 'output'
+            || normalizeDirection(group.t.direction) !== 'output') continue;
+        const physicalBase = group.i.physical_name.slice(0, -2);
+        if (group.o.physical_name.slice(0, -2) !== physicalBase
+            || group.t.physical_name.slice(0, -2) !== physicalBase) continue;
+        const widths = [group.i, group.o, group.t].map(port => `${port.left ?? ''}:${port.right ?? ''}`);
+        if (!widths.every(width => width === widths[0])) continue;
+        const name = `${physicalBase}_io`;
+        if (portMap.has(name)) continue;
+        portMap.set(name, {
+            name,
+            direction: 'inout',
+            nameOffset: quotedValueOffset(text, group.i.physical_name)
+        });
+    }
+}
+
 function parseXilinxXci(text) {
     const data = JSON.parse(text);
     const instance = data && data.ip_inst;
@@ -67,6 +102,7 @@ function parseXilinxBd(text, filePath = '') {
         for (const port of Object.values(interfacePort?.port_maps || {})) {
             addPort(portMap, text, port && port.physical_name, port && port.direction);
         }
+        addTriStateWrapperPorts(portMap, text, interfacePort);
     }
 
     return {
@@ -105,6 +141,7 @@ function findVivadoPrimitiveSource(typeName, xvlogPath, fileExists = fs.existsSy
 }
 
 module.exports = {
+    addTriStateWrapperPorts,
     findVivadoPrimitiveSource,
     normalizeDirection,
     parseVendorMetadata,

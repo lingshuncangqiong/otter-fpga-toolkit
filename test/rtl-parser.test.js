@@ -64,6 +64,10 @@ test('解析 module、ANSI port direction 和参数化实例', () => {
     assert.equal(instance.typeName, 'i2c_edid_slave');
     assert.equal(instance.instanceName, 'i2c_edid_slave_U0');
     assert.deepEqual(
+        instance.parameterConnections.map(item => item.portName),
+        ['P_EDID_PROFILE']
+    );
+    assert.deepEqual(
         instance.connections.map(item => item.portName),
         ['i_clk', 'i_rst', 'o_slave_busy', 'o_bus_error']
     );

@@ -10,6 +10,24 @@ function normalizeTabSize(value){const n=Number(value);if(!Number.isFinite(n))re
 function getTabSize(){return normalizeTabSize(vscode.workspace.getConfiguration('verilogInstantiate').get('tabSize',4));}
 function selectionEndLine(selection){if(selection.isEmpty)return selection.active.line;if(selection.end.character===0&&selection.end.line>selection.start.line)return selection.end.line-1;return selection.end.line;}
 function resolveLintToolName(configuredTool,toolOverride){const tool=toolOverride||configuredTool;return ['auto','iverilog','xvlog','modelsim'].includes(tool)?tool:'auto';}
+function computeInstanceColumns(entries,tab){
+    const groups=new Map();
+    for(const entry of entries){
+        if(entry.tag!=='inst_port'&&entry.tag!=='inst_port_multi')continue;
+        const indent=entry.ind.length;
+        const group=groups.get(indent)||{maxName:0,maxConn:0};
+        if(entry.port.length>group.maxName)group.maxName=entry.port.length;
+        if(entry.tag==='inst_port'&&entry.conn.length>group.maxConn)group.maxConn=entry.conn.length;
+        groups.set(indent,group);
+    }
+    const columns=new Map();
+    for(const [indent,group] of groups){
+        const ipCol=padToTab(indent+group.maxName+2,tab);
+        const cpCol=padToTab(ipCol+group.maxConn+2,tab);
+        columns.set(indent,{ipCol,cpCol});
+    }
+    return columns;
+}
 
 const lintTimers = new Map();
 const lintSeq = new Map();
@@ -96,13 +114,12 @@ function activate(context) {
 
         // 解析 — v2.0.2 fix3: function/task/tab
         let mt=0,mn=0,me=0,mcl=0,he=0;
-        let ipMaxN=0, ipMaxC=0;
         const all=[],byLine=new Map();
         for(let i=0;i<doc.lineCount;i++){
             const p=parseLine(doc.lineAt(i).text, tab);
             if(!p)continue;
             const entry={i,...p};all.push(entry);byLine.set(i,entry);
-            if(p.tag==='inst_port'||p.tag==='inst_port_multi'){if(p.port.length>ipMaxN)ipMaxN=p.port.length;if(p.tag==='inst_port'&&p.conn.length>ipMaxC)ipMaxC=p.conn.length;continue;}
+            if(p.tag==='inst_port'||p.tag==='inst_port_multi')continue;
             if(p.type.length>mt)mt=p.type.length;
             if(p.name.length>mn)mn=p.name.length;
             if(p.eq){he=1;if(p.eq.length>me)me=p.eq.length;}
@@ -121,16 +138,15 @@ function activate(context) {
         const cc=padToTab(vc+me+1,tab)-1;
         const sigCols={bc,cp,nc,ec,vc,cc};
 
-        // 例化列: .port (conn),   — conn内部对齐, ), 上下列齐
-        const ipCol=padToTab(ipMaxN+2,tab)+tab;  // ( 起始列
-        const cpCol=padToTab(ipCol+ipMaxC+2,tab); // ) 对齐列，+2确保至少1空格
+        // 例化列按实际缩进分组，避免源码缩进宽度与 tabSize 不同时最长端口错位。
+        const instColsByIndent=computeInstanceColumns(all,tab);
 
         const edits=[];
         for(let i=s;i<=e;i++){
             const orig=doc.lineAt(i).text;
             const entry=byLine.get(i);
             if(!entry)continue;
-            const cols=(entry.tag==='inst_port'||entry.tag==='inst_port_multi')?{ipCol,cpCol}:sigCols;
+            const cols=(entry.tag==='inst_port'||entry.tag==='inst_port_multi')?instColsByIndent.get(entry.ind.length):sigCols;
             const fmt=doFmt(entry, cols, orig);
             if(fmt!==orig)edits.push(vscode.TextEdit.replace(new vscode.Range(i,0,i,orig.length),fmt));
         }
@@ -332,7 +348,7 @@ function doFmt(entry, cols, orig){
         r+=' '.repeat(Math.max(1,ipCol-r.length));
         r+='('+entry.conn;
         r+=' '.repeat(Math.max(1,cpCol-r.length));
-        r+=hasComma?'),':') ';
+        r+=hasComma?'),':')';
         return r+cmPort;
     }
     // 信号声明
@@ -683,5 +699,5 @@ function deactivate(){}
 module.exports={
     activate,
     deactivate,
-    __test:{normalizeTabSize,selectionEndLine,resolveLintToolName,missingLintToolMessage,isOwnedLintTempDir,parseDeclBody,declNames,parseLine,doFmt,parseModule,spComma,genInst}
+    __test:{normalizeTabSize,selectionEndLine,resolveLintToolName,missingLintToolMessage,isOwnedLintTempDir,computeInstanceColumns,parseDeclBody,declNames,parseLine,doFmt,parseModule,spComma,genInst}
 };

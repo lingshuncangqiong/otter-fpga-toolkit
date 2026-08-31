@@ -70,6 +70,38 @@ test('Xilinx BD 顶层 scalar/interface 端口转换为 wrapper 方向', () => {
     );
 });
 
+test('Xilinx BD I/O/T 三态端口合成为 wrapper inout', () => {
+    const text = JSON.stringify({
+        design: {
+            design_info: {name: 'otter_zu7ev_lab'},
+            interface_ports: {
+                sensor_iic: {
+                    port_maps: {
+                        SCL_I: {physical_name: 'sensor_iic_scl_i', direction: 'I'},
+                        SCL_O: {physical_name: 'sensor_iic_scl_o', direction: 'O'},
+                        SCL_T: {physical_name: 'sensor_iic_scl_t', direction: 'O'},
+                        SDA_I: {physical_name: 'sensor_iic_sda_i', direction: 'I'},
+                        SDA_O: {physical_name: 'sensor_iic_sda_o', direction: 'O'},
+                        SDA_T: {physical_name: 'sensor_iic_sda_t', direction: 'O'}
+                    }
+                },
+                sensor_gpio: {
+                    port_maps: {
+                        TRI_I: {physical_name: 'sensor_gpio_tri_i', direction: 'I', left: '1', right: '0'},
+                        TRI_O: {physical_name: 'sensor_gpio_tri_o', direction: 'O', left: '1', right: '0'},
+                        TRI_T: {physical_name: 'sensor_gpio_tri_t', direction: 'O', left: '1', right: '0'}
+                    }
+                }
+            }
+        }
+    }, null, 2);
+    const definition = parseXilinxBd(text, 'C:/project/otter_zu7ev_lab.bd');
+    const directions = new Map(definition.ports.map(port => [port.name, port.direction]));
+    assert.equal(directions.get('sensor_iic_scl_io'), 'inout');
+    assert.equal(directions.get('sensor_iic_sda_io'), 'inout');
+    assert.equal(directions.get('sensor_gpio_tri_io'), 'inout');
+});
+
 test('Vivado 原语路径只接受合法 module 名并定位 unisims 源码', () => {
     const xvlogPath = path.join('C:', 'Xilinx', 'Vivado', '2024.2', 'bin', 'xvlog.bat');
     const expected = path.join('C:', 'Xilinx', 'Vivado', '2024.2', 'data', 'verilog', 'src', 'unisims', 'IOBUF.v');

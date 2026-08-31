@@ -26,6 +26,7 @@ const {
     resolveLintToolName,
     missingLintToolMessage,
     isOwnedLintTempDir,
+    computeInstanceColumns,
     parseLine,
     doFmt,
     parseModule,
@@ -90,6 +91,26 @@ test('例化端口格式化保留逗号和注释', () => {
     assert.equal(entry.tag, 'inst_port');
     const formatted = doFmt(entry, {ipCol: 16, cpCol: 28}, original);
     assert.match(formatted, /^\s+\.data\s+\(payload\s+\),\/\/ payload$/);
+});
+
+test('例化参数按实际缩进对齐且末行没有尾随空格', () => {
+    const lines = [
+        '    .P_DEST_SYNC_FF     (2                              ),',
+        '    .P_RST_ACTIVE_HIGH  (1                              ),',
+        '    .P_ASYNC_ASSERT     (1                              ) ',
+        '    .i_src_rst          (i_video_rst                     ),',
+        '    .i_dest_clk         (i_memory_clk                    ),',
+        '    .o_dest_rst         (w_video_rst_memory_cdc          ) '
+    ];
+    const entries = lines.map(line => parseLine(line, 2));
+    const columns = computeInstanceColumns(entries, 2);
+    const formatted = entries.map((entry, index) => (
+        doFmt(entry, columns.get(entry.ind.length), lines[index])
+    ));
+    assert.equal(new Set(formatted.map(line => line.indexOf('('))).size, 1);
+    assert.equal(new Set(formatted.map(line => line.lastIndexOf(')'))).size, 1);
+    assert.ok(formatted.every(line => !/\s+$/.test(line)));
+    assert.equal(formatted[1].indexOf('('), 24);
 });
 
 test('manifest 保留命令和快捷键，并贡献层次树及提示设置', () => {
