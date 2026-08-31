@@ -28,6 +28,7 @@ Otter-FPGA-Toolkit/
 ├── AGENTS.md                   ← 智能体开发与发布约束
 ├── PROJECT.md                  ← 本文件（项目上下文与历史）
 ├── extension.js                ← 扩展主逻辑
+├── format-cli.js               ← 复用 Ctrl+L 逻辑的只读检查/显式写入 CLI
 ├── rtl-parser.js               ← module/port/instance 纯解析层
 ├── vendor-metadata.js          ← Vivado XCI/BD 端口元数据与原语源码定位
 ├── workspace-features.js       ← 工作区索引、Inlay Hints、F12 和层次树
@@ -46,6 +47,7 @@ Otter-FPGA-Toolkit/
 │   └── cst.tmLanguage.json
 ├── test/
 │   ├── extension.test.js       ← 原有命令/格式化/manifest 回归
+│   ├── format-cli.test.js      ← CLI 参数、CRLF/BOM、check/write 和行范围回归
 │   ├── rtl-parser.test.js      ← ANSI/非 ANSI module、实例和 grammar 回归
 │   ├── vendor-metadata.test.js ← XCI/BD 端口方向与 Vivado 原语定位回归
 │   └── workspace-features.test.js ← Inlay/F12/层次树 provider 回归
@@ -74,6 +76,7 @@ Otter-FPGA-Toolkit/
 | 11 | 端口方向提示 | 自动 | `PortDirectionInlayProvider` — 纯显示 input/output/inout |
 | 12 | 跨文件模块跳转 | `F12` / `Ctrl+Click` | `WorkspaceModuleIndex` + `provideWorkspaceDefinition()` |
 | 13 | 模块层次树 | Explorer | `ModuleHierarchyProvider` — 顶层 module → instances |
+| 14 | 命令行排版 | `node format-cli.js` | 与 Ctrl+L 共用 `formatLineRange()`；`--check` 只读，`--write` 显式写入 |
 
 ---
 
@@ -259,7 +262,8 @@ git push origin main
 - 多行端口连接的 Inlay Hint 会在后续有表达式内容的行重复显示同一方向，修复 `{io_sensor_pwdn, io_sensor_rst_n}` 因首行 `inout` 提示产生的视觉错位；不再使用会触发 VS Code 标签复用异常的纯空白 hint，也不修改 RTL 文本。
 - Ctrl+L 例化列改为按实际缩进宽度分组计算，修复 `tabSize` 与源码缩进不一致时最长参数名的左括号偏移；无逗号末行不再添加尾随空格。
 - 实例解析保留 `#(...)` 内的 named parameter connections，Inlay Hint 在参数表达式前显示与方向标签同宽的 `param`，消除参数区与端口区的视觉不对称；沿用现有总开关且不修改 RTL 文本。
-- 当前验证：`npm run check` 30/30 PASS；参数 `param` 与 `input/output/inout` 标签同为6字符宽且按源码顺序生成；真实 BD/顶层的三个目标端口均解析为 `inout`；多行与单行 Inlay Hint 回归 PASS；Ctrl+L 在 `tabSize=2`、源码缩进4空格的实例中左右括号列一致且无尾随空格；仓库外测试 VSIX 打包与内容审查 PASS。VS Code 实际显示和 Ctrl+L 编辑效果等待用户安装验证。
+- 新增 `format-cli.js`，在编辑器外复用 Ctrl+L 的 `formatLineRange()`；支持 `--check`、`--write`、`--tab-size` 和1-based闭区间行范围，保持 UTF-8 BOM 与原换行风格。
+- 当前验证：`npm run check` 33/33 PASS；CLI 的只读 check、显式 write、CRLF/BOM 和行范围专项回归 PASS；参数 `param` 与 `input/output/inout` 标签同为6字符宽且按源码顺序生成；真实 BD/顶层的三个目标端口均解析为 `inout`；多行与单行 Inlay Hint 回归 PASS；Ctrl+L 在 `tabSize=2`、源码缩进4空格的实例中左右括号列一致且无尾随空格。正式 VSIX 打包与内容审查待干净 worktree 执行。
 
 ---
 

@@ -66,6 +66,18 @@ test_module #(
 - 自动对齐信号声明和例化端口
 - 统一注释格式为 `,// 注释`
 
+同一套排版逻辑也可以在编辑器外调用，便于自动化任务复用 `Ctrl+L` 的实际实现：
+
+```powershell
+node .\format-cli.js --check E:\path\to\module.sv
+node .\format-cli.js --write E:\path\to\module.sv
+node .\format-cli.js --write --start-line 20 --end-line 80 E:\path\to\module.sv
+```
+
+`--check` 只检查且不写文件；需要排版时退出码为 `1`。`--write` 才会原位修改文件。
+行号从 `1` 开始并包含首尾行；即使只处理一个范围，对齐列仍按完整文件计算，与编辑器选区执行
+`Ctrl+L` 的行为一致。命令保留原文件的 `CRLF/LF` 和 UTF-8 BOM。
+
 ### 语法检查
 
 设置 → `Otter FPGA Toolkit` → `Lint Tool` 可选：

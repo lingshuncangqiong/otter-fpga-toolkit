@@ -111,45 +111,13 @@ function activate(context) {
         const sel = editor.selection;
         const s=sel.isEmpty?sel.active.line:sel.start.line, e=selectionEndLine(sel);
         const doc = editor.document;
-
-        // 解析 — v2.0.2 fix3: function/task/tab
-        let mt=0,mn=0,me=0,mcl=0,he=0;
-        const all=[],byLine=new Map();
-        for(let i=0;i<doc.lineCount;i++){
-            const p=parseLine(doc.lineAt(i).text, tab);
-            if(!p)continue;
-            const entry={i,...p};all.push(entry);byLine.set(i,entry);
-            if(p.tag==='inst_port'||p.tag==='inst_port_multi')continue;
-            if(p.type.length>mt)mt=p.type.length;
-            if(p.name.length>mn)mn=p.name.length;
-            if(p.eq){he=1;if(p.eq.length>me)me=p.eq.length;}
-            if(p.cl&&p.cl.length>mcl)mcl=p.cl.length;
-        }
-        if(!all.length)return;
-
-        // 信号列
-        const bc=padToTab(mt+1,tab)+tab;
-        const cp=mcl?padToTab(bc+mcl+2,tab)-bc-2:0;
-        let mb=0;
-        for(const p of all){if(p.tag==='inst_port'||p.tag==='inst_port_multi')continue;let w=0;if(p.cl){w=p.cl.length+Math.max(0,cp-p.cl.length)+1+(p.rr?p.rr.length:1)+2;}if(w>mb)mb=w;}
-        const nc=padToTab(bc+mb+1,tab);
-        const ec=padToTab(nc+mn+1,tab);
-        const vc=padToTab(ec+(he?1:0),tab);
-        const cc=padToTab(vc+me+1,tab)-1;
-        const sigCols={bc,cp,nc,ec,vc,cc};
-
-        // 例化列按实际缩进分组，避免源码缩进宽度与 tabSize 不同时最长端口错位。
-        const instColsByIndent=computeInstanceColumns(all,tab);
-
-        const edits=[];
-        for(let i=s;i<=e;i++){
-            const orig=doc.lineAt(i).text;
-            const entry=byLine.get(i);
-            if(!entry)continue;
-            const cols=(entry.tag==='inst_port'||entry.tag==='inst_port_multi')?instColsByIndent.get(entry.ind.length):sigCols;
-            const fmt=doFmt(entry, cols, orig);
-            if(fmt!==orig)edits.push(vscode.TextEdit.replace(new vscode.Range(i,0,i,orig.length),fmt));
-        }
+        const lines=[];
+        for(let i=0;i<doc.lineCount;i++)lines.push(doc.lineAt(i).text);
+        const result=formatLineRange(lines,tab,s,e);
+        const edits=result.changes.map(change=>{
+            const orig=doc.lineAt(change.line).text;
+            return vscode.TextEdit.replace(new vscode.Range(change.line,0,change.line,orig.length),change.text);
+        });
         if(edits.length)await editor.edit(eb=>edits.forEach(x=>eb.replace(x.range,x.newText)));
     }));
 
@@ -366,6 +334,52 @@ function doFmt(entry, cols, orig){
     else if(rest||tail){r+=' '.repeat(Math.max(1,cc-r.length));r+=rest+(tail?' '+tail:'');}
     else{r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}
     return r+cmSig;
+}
+
+function formatLineRange(lines,tabValue,startLine,endLine){
+    const tab=normalizeTabSize(tabValue);
+    const first=Math.max(0,Number.isFinite(startLine)?Math.trunc(startLine):0);
+    const last=Math.min(lines.length-1,Number.isFinite(endLine)?Math.trunc(endLine):lines.length-1);
+
+    // 列位置始终按完整文档计算，保持与编辑器 Ctrl+L 的当前行/选区行为一致。
+    let mt=0,mn=0,me=0,mcl=0,he=0;
+    const all=[],byLine=new Map();
+    for(let i=0;i<lines.length;i++){
+        const p=parseLine(lines[i],tab);
+        if(!p)continue;
+        const entry={i,...p};all.push(entry);byLine.set(i,entry);
+        if(p.tag==='inst_port'||p.tag==='inst_port_multi')continue;
+        if(p.type.length>mt)mt=p.type.length;
+        if(p.name.length>mn)mn=p.name.length;
+        if(p.eq){he=1;if(p.eq.length>me)me=p.eq.length;}
+        if(p.cl&&p.cl.length>mcl)mcl=p.cl.length;
+    }
+    if(!all.length||last<first)return {lines:lines.slice(),changes:[]};
+
+    const bc=padToTab(mt+1,tab)+tab;
+    const cp=mcl?padToTab(bc+mcl+2,tab)-bc-2:0;
+    let mb=0;
+    for(const p of all){if(p.tag==='inst_port'||p.tag==='inst_port_multi')continue;let w=0;if(p.cl){w=p.cl.length+Math.max(0,cp-p.cl.length)+1+(p.rr?p.rr.length:1)+2;}if(w>mb)mb=w;}
+    const nc=padToTab(bc+mb+1,tab);
+    const ec=padToTab(nc+mn+1,tab);
+    const vc=padToTab(ec+(he?1:0),tab);
+    const cc=padToTab(vc+me+1,tab)-1;
+    const sigCols={bc,cp,nc,ec,vc,cc};
+    const instColsByIndent=computeInstanceColumns(all,tab);
+
+    const formatted=lines.slice();
+    const changes=[];
+    for(let i=first;i<=last;i++){
+        const entry=byLine.get(i);
+        if(!entry)continue;
+        const cols=(entry.tag==='inst_port'||entry.tag==='inst_port_multi')?instColsByIndent.get(entry.ind.length):sigCols;
+        const text=doFmt(entry,cols,lines[i]);
+        if(text!==lines[i]){
+            formatted[i]=text;
+            changes.push({line:i,text});
+        }
+    }
+    return {lines:formatted,changes};
 }
 
 //===== include 路径自动检测 =====
@@ -699,5 +713,5 @@ function deactivate(){}
 module.exports={
     activate,
     deactivate,
-    __test:{normalizeTabSize,selectionEndLine,resolveLintToolName,missingLintToolMessage,isOwnedLintTempDir,computeInstanceColumns,parseDeclBody,declNames,parseLine,doFmt,parseModule,spComma,genInst}
+    __test:{normalizeTabSize,selectionEndLine,resolveLintToolName,missingLintToolMessage,isOwnedLintTempDir,computeInstanceColumns,parseDeclBody,declNames,parseLine,doFmt,formatLineRange,parseModule,spComma,genInst}
 };
