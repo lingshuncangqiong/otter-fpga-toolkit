@@ -6,7 +6,7 @@
 
 - 在本仓库根目录完成开发、测试、打包与发布，不得重新创建旧的 `2-dev` / `1-release` 镜像流程。
 - 保留用户的无关改动；写入前检查 `git status --short --branch` 和当前 diff。
-- 当前发布版本：`2.1.14`。
+- 当前发布版本：`2.1.15`。
 - 当前 GitHub 发布提交：以 `git log` 中 `main` 的最新发布提交为准。
 - 用户确认测试包有效并明确授权发布前，不得修改扩展版本号。
 
@@ -39,7 +39,7 @@
 - 除非用户明确提供有效的 `VSCE_PAT` 并要求自动发布，否则 Marketplace 采用手动上传。
 - 手动上传地址：
   `https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang`
-- 当前最终发布包：`otter-fpga-toolkit-2.1.14.vsix`。
+- 当前最终发布包：`otter-fpga-toolkit-2.1.15.vsix`。
 
 ## 清理
 

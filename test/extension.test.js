@@ -116,7 +116,7 @@ test('例化参数按实际缩进对齐且末行没有尾随空格', () => {
 test('manifest 保留命令和快捷键，并贡献层次树及提示设置', () => {
     const root = path.resolve(__dirname, '..');
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    assert.equal(manifest.version, '2.1.14');
+    assert.equal(manifest.version, '2.1.15');
     assert.deepEqual(
         manifest.contributes.commands.map(item => item.command),
         [

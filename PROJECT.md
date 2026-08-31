@@ -11,7 +11,7 @@
 | **名称** | Otter FPGA Toolkit (水獭FPGA工具集) |
 | **扩展名** | `otter-fpga-toolkit` |
 | **Publisher** | `Otter-xiaoxiaoxuwang` |
-| **版本** | `2.1.14` |
+| **版本** | `2.1.15` |
 | **GitHub** | `https://github.com/lingshuncangqiong/otter-fpga-toolkit` |
 | **VSCode 引擎** | `^1.75.0` |
 | **许可** | MIT |
@@ -49,7 +49,7 @@ Otter-FPGA-Toolkit/
 │   ├── rtl-parser.test.js      ← ANSI/非 ANSI module、实例和 grammar 回归
 │   ├── vendor-metadata.test.js ← XCI/BD 端口方向与 Vivado 原语定位回归
 │   └── workspace-features.test.js ← Inlay/F12/层次树 provider 回归
-└── otter-fpga-toolkit-2.1.14.vsix  ← 当前本地发布包，Git 忽略
+└── otter-fpga-toolkit-2.1.15.vsix  ← 当前本地发布包，Git 忽略
 ```
 
 > **唯一入口**：自 2026-08-21 起，本仓库根目录同时承担开发、测试、GitHub 推送和 VSIX 发布，不再维护 `2-dev` / `1-release` 双副本。
@@ -173,15 +173,15 @@ activate()
 
 ## 当前发布状态 / 接手重点
 
-- 当前最新版本：`2.1.14`
-- 当前 GitHub main 发布提交：以 `git log` 中最新的 `v2.1.14` 提交为准
+- 当前最新版本：`2.1.15`
+- 当前 GitHub main 发布提交：以 `git log` 中最新的 `v2.1.15` 提交为准
 - 本仓库以 `main` 跟踪 `origin/main`；开始修改前检查 `git status --short --branch` 和当前 diff
 - `origin` 必须保持 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 - GitHub SSH key 名称：`Codex Windows`
 - GitHub 发布已经可以走 SSH，不再依赖 HTTPS token / PAT URL
 - VS Code Marketplace 暂不走自动 `vsce publish`：用户创建 Azure DevOps organization 会卡银行卡/订阅；采用手动上传 VSIX
 - Marketplace 手动上传页面：`https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang`
-- 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.14.vsix`
+- 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.15.vsix`
 - 发布后仓库根目录只保留当前最终 VSIX；测试包输出到仓库外的临时路径
 - 旧目录中的迁移备份与凭据继续留在仓库外，不作为当前开发入口
 
@@ -251,9 +251,9 @@ git push origin main
 
 ---
 
-## 当前开发改动（未发布）
+## v2.1.15 改动记录
 
-- 版本号保持 `2.1.14`，正式 VSIX 不覆盖。
+- 用户已完成候选包安装验证并授权发布；版本号更新为 `2.1.15`。
 - Vivado BD 元数据解析新增 wrapper 三态端口合成：同组 `*_I / *_O / *_T` 且方向为 input/output/output、位宽一致时，生成对应 `*_io : inout`。
 - 用 `otter_zu7ev_lab.bd` 和 `otter_zu7ev_lab_top.v` 验证 `sensor_gpio_tri_io`、`sensor_iic_scl_io`、`sensor_iic_sda_io` 的实际方向来源。
 - 多行端口连接的 Inlay Hint 会在后续有表达式内容的行重复显示同一方向，修复 `{io_sensor_pwdn, io_sensor_rst_n}` 因首行 `inout` 提示产生的视觉错位；不再使用会触发 VS Code 标签复用异常的纯空白 hint，也不修改 RTL 文本。
@@ -515,5 +515,5 @@ git push origin main
 11. **GitHub** — repo: `lingshuncangqiong/otter-fpga-toolkit`，`origin` 是 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 12. **activationEvents 警告** — VSCode 提示可删除，但 `vsce` 打包仍需保留，忽略即可
 13. **凭据** — GitHub 推送只使用现有 SSH 认证；不得使用旧 PAT 或把凭据写入 remote URL
-14. **当前发布包** — 仓库根目录保留 `otter-fpga-toolkit-2.1.14.vsix`
+14. **当前发布包** — 仓库根目录保留 `otter-fpga-toolkit-2.1.15.vsix`
 15. **清理状态** — 当前仓库采用单一真源；测试 VSIX 放在仓库外，根目录只保留最终发布包
