@@ -12,7 +12,7 @@
 
 ## 验证与发布
 
-1. 每项改动都要执行与风险匹配的检查。修改 JavaScript 后至少运行 `node --check extension.js`；修改 JSON 后解析每个变更文件。
+1. 执行与实际改动及风险匹配的检查。JavaScript 语法检查针对实际修改的文件使用 `node --check <file>`，行为变化按受影响功能选择测试；修改 JSON 后解析变更文件。纯文档只核对相关 diff 和引用。
 2. 需要测试 VSIX 时，必须输出到明确的临时路径，避免覆盖当前正式发布包：
    `npx.cmd -y @vscode/vsce package --out <temporary-test.vsix>`
 3. 用户确认测试包并授权发布后，才可更新 `package.json` 版本、生成最终 `otter-fpga-toolkit-X.Y.Z.vsix`，并核对归档内容。
@@ -31,7 +31,7 @@
 - 获得 push 授权后，先确认 remote 是上述 SSH URL，再执行有超时、只读的 `git ls-remote origin HEAD`。远端读取成功才证明现有 SSH 配置可用。
 - 如果密钥缺失或 SSH 认证失败，停止并报告。未经用户明确授权，不得回退到 HTTPS/PAT、使用旧 PAT 文件、修改 SSH service/configuration 或创建替代密钥。
 - 旧凭据文件保留在本仓库之外，不是认证来源。普通开发与发布过程不得检查、移动、复制、归档或使用这些文件。
-- `.gitignore` 和 `.vscodeignore` 只提供纵深防护；每次 push 或发布前仍须检查 commit 和 VSIX 中是否存在凭据类文件。
+- 推送前检查本次待推提交是否包含凭据类文件；VSIX 内容检查只针对本次实际生成或发布的包，不因普通源码推送而额外打包。
 
 ## Marketplace
 
