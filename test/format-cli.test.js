@@ -5,12 +5,46 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const {formatFile, parseArgs} = require('../format-cli.js');
+const {capabilities, formatFile, main, parseArgs} = require('../format-cli.js');
 
 test('CLI 参数要求显式选择 check 或 write', () => {
     assert.throws(() => parseArgs(['demo.sv']), /--check or --write/);
     assert.throws(() => parseArgs(['--check', '--write', 'demo.sv']), /mutually exclusive/);
     assert.throws(() => parseArgs(['--write', '--start-line', '3', '--end-line', '2', 'demo.sv']), /greater/);
+    assert.equal(parseArgs(['--check', '--json', 'demo.sv']).json, true);
+    assert.equal(capabilities().exitCodes.formattingRequired, 1);
+});
+
+test('JSON 智能体接口返回稳定状态和退出码', t => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-format-json-'));
+    t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));
+    const filePath = path.join(tempDir, 'agent.sv');
+    fs.writeFileSync(filePath, 'wire a;// agent\n', 'utf8');
+    const run = args => {
+        let stdout = '';
+        let stderr = '';
+        const code = main(args, {
+            stdout: {write(value) { stdout += value; }},
+            stderr: {write(value) { stderr += value; }}
+        });
+        return {code, payload: stdout ? JSON.parse(stdout) : null, stderr};
+    };
+
+    const check = run(['--check', '--json', filePath]);
+    assert.equal(check.code, 1);
+    assert.equal(check.payload.status, 'formatting-required');
+    assert.equal(check.payload.wrote, false);
+    assert.equal(check.stderr, '');
+
+    const write = run(['--write', '--json', filePath]);
+    assert.equal(write.code, 0);
+    assert.equal(write.payload.status, 'formatted');
+    assert.equal(write.payload.wrote, true);
+
+    const clean = run(['--check', '--json', filePath]);
+    assert.equal(clean.code, 0);
+    assert.equal(clean.payload.status, 'unchanged');
+    assert.equal(clean.payload.interfaceVersion, 1);
 });
 
 test('check 不改文件，write 与 Ctrl+L 共用格式并保持 CRLF', t => {

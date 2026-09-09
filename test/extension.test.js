@@ -27,8 +27,11 @@ const {
     missingLintToolMessage,
     isOwnedLintTempDir,
     computeInstanceColumns,
+    formatterInterface,
+    expressionContinues,
     parseLine,
     doFmt,
+    formatLineRange,
     parseModule,
     genInst
 } = extension.__test;
@@ -113,10 +116,115 @@ test('例化参数按实际缩进对齐且末行没有尾随空格', () => {
     assert.equal(formatted[1].indexOf('('), 24);
 });
 
+test('多行声明续行对齐到首行 value 列并保留相对缩进', () => {
+    const lines = [
+        'localparam integer P_SHORT = 1;',
+        'localparam integer P_ALIGNED_PROFILE = ((P_OPERATION_DW % P_MEMORY_GROUP_DW) == 0) &&',
+        '                                                ((P_ALIGNED_RATIO == 1) || (P_ALIGNED_RATIO == 2) ||',
+        '                                                 (P_ALIGNED_RATIO == 4) || (P_ALIGNED_RATIO == 8));'
+    ];
+    const result = formatLineRange(lines, 4, 0, lines.length - 1);
+    const formatted = result.lines;
+    const equals = formatted[1].indexOf('=');
+    const valueColumn = formatted[1].indexOf('((', equals);
+    const firstContinuation = formatted[2].search(/\S/);
+    const secondContinuation = formatted[3].search(/\S/);
+    assert.equal(firstContinuation, valueColumn);
+    assert.equal(secondContinuation, valueColumn + 1);
+    assert.ok(!/\s+$/.test(formatted[1]));
+    assert.match(formatted[3], /;$/);
+});
+
+test('无逗号的完整末参数不误判为续行，注释与同组声明对齐', () => {
+    const lines = [
+        '    parameter integer P_WIDTH = 16,// width',
+        "    parameter [P_PPC*P_DW-1:0] P_FILL_DATA = {P_PPC*P_DW{1'b0}}// fill"
+    ];
+    const result = formatLineRange(lines, 4, 0, lines.length - 1);
+    const formatted = result.lines;
+    assert.equal(parseLine(lines[1], 4).continues, false);
+    assert.equal(formatted[0].indexOf('//'), formatted[1].indexOf('//'));
+    assert.match(formatted[1], /\}\s{2,}\/\/ fill$/);
+});
+
+test('续行判断覆盖未闭合括号、逻辑运算符和三目冒号', () => {
+    assert.equal(expressionContinues('((P_A == 1) ||'), true);
+    assert.equal(expressionContinues('(P_A <= 1) ? 1 :'), true);
+    assert.equal(expressionContinues("{P_PPC*P_DW{1'b0}}"), false);
+    assert.equal(expressionContinues('"string with ( delimiter"'), false);
+});
+
+test('首行只有等号的多行 localparam 对齐等号与续行 value 列', () => {
+    const lines = [
+        'localparam integer P_APP_ADDR_UNITS = (P_APP_DW < 64) ? 1 : (P_APP_DW / 64);',
+        'localparam integer P_WIDTH_RATIO =',
+        '    (P_OPERATION_DW >= P_APP_DW) ?',
+        '    (P_OPERATION_DW / P_APP_DW) :',
+        '    (P_APP_DW / P_OPERATION_DW);',
+        'localparam integer P_WIDTH_RATIO_SHIFT = $clog2(P_WIDTH_RATIO);'
+    ];
+    const parsed = parseLine(lines[1], 4);
+    assert.equal(parsed.hasEq, true);
+    assert.equal(parsed.eq, '');
+    assert.equal(parsed.continues, true);
+
+    const formatted = formatLineRange(lines, 4, 0, lines.length - 1).lines;
+    const equalsColumn = formatted[0].indexOf('=');
+    const valueColumn = formatted[0].indexOf('(', equalsColumn);
+    assert.equal(formatted[1].indexOf('='), equalsColumn);
+    assert.ok(!/\s+$/.test(formatted[1]));
+    assert.deepEqual(formatted.slice(2, 5).map(line => line.search(/\S/)), [valueColumn, valueColumn, valueColumn]);
+});
+
+test('SystemVerilog typed parameter 保留类型并与 integer 参数对齐', () => {
+    const supportedTypes = ['string', 'byte', 'shortint', 'longint', 'shortreal', 'chandle', 'type'];
+    for(const type of supportedTypes){
+        const parsed = parseLine(`parameter ${type} P_VALUE = DEFAULT;`, 4);
+        assert.equal(parsed.type, `parameter ${type}`);
+        assert.equal(parsed.name, 'P_VALUE');
+        assert.equal(parsed.eq, 'DEFAULT');
+    }
+
+    const lines = [
+        '    parameter integer P_FRAME_BUFFER_NUM = 4,// count',
+        '    parameter string P_PAYLOAD_FIFO_MODE = "STD"// mode'
+    ];
+    const formatted = formatLineRange(lines, 4, 0, lines.length - 1).lines;
+    const mode = parseLine(formatted[1], 4);
+    assert.equal(mode.type, 'parameter string');
+    assert.equal(mode.name, 'P_PAYLOAD_FIFO_MODE');
+    assert.equal(formatted[0].indexOf('='), formatted[1].indexOf('='));
+    assert.equal(formatted[0].indexOf('//'), formatted[1].indexOf('//'));
+});
+
+test('VS Code 智能体接口默认只检查，显式 write 才写入', t => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-vscode-api-'));
+    t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));
+    const filePath = path.join(tempDir, 'agent.sv');
+    fs.writeFileSync(filePath, 'wire a;// agent\n', 'utf8');
+
+    const check = formatterInterface({file: filePath, tabSize: 4});
+    assert.equal(check.status, 'formatting-required');
+    assert.equal(check.exitCode, 1);
+    assert.equal(check.wrote, false);
+    assert.equal(fs.readFileSync(filePath, 'utf8'), 'wire a;// agent\n');
+
+    const write = formatterInterface({mode: 'write', file: filePath, tabSize: 4});
+    assert.equal(write.status, 'formatted');
+    assert.equal(write.exitCode, 0);
+    assert.equal(write.wrote, true);
+    assert.notEqual(fs.readFileSync(filePath, 'utf8'), 'wire a;// agent\n');
+
+    const invalid = formatterInterface({mode: 'write', file: filePath, tabSize: 4, startLine: 2, endLine: 1});
+    assert.equal(invalid.status, 'error');
+    assert.equal(invalid.exitCode, 2);
+});
+
 test('manifest 保留命令和快捷键，并贡献层次树及提示设置', () => {
     const root = path.resolve(__dirname, '..');
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     assert.equal(manifest.version, '2.1.15');
+    assert.ok(manifest.activationEvents.includes('onCommand:otter-fpga-toolkit.formatFile'));
     assert.deepEqual(
         manifest.contributes.commands.map(item => item.command),
         [

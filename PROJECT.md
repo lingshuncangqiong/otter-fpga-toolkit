@@ -254,6 +254,23 @@ git push origin main
 
 ---
 
+## 当前开发改动（未发布）
+
+- 版本号保持 `2.1.15`，正式 VSIX 不覆盖。
+- Ctrl+L / `format-cli` 识别带 `=` 且首行未以分号结束的多行声明，把后续表达式内容整体对齐到首行 value 列，同时保留续行之间原有的相对缩进。
+- 多行声明首行不再为了虚构的结束列补尾随空格；目标 `user_video_frame_buffer_read.sv` 只读验证覆盖 `P_PAYLOAD_RAM_DEPTH`、`P_LINE_WORD_COUNT_DW` 和 `P_ALIGNED_PROFILE`。
+- 无逗号的末参数不再仅因缺少行尾分隔符就误判为多行声明；续行现在由未闭合括号或行尾运算符识别，`P_FILL_DATA` 注释可与同组 parameter/port 注释对齐。
+- 声明首行只有 bare `=` 时也保留等号语义：等号回到同组 `ec` 列，首行不产生尾随空格，后续表达式对齐到 `vc` 列并保留相对缩进；覆盖 `user_ddr_app_driver.sv` 中四个多行 `localparam`。
+- SystemVerilog typed parameter 解析新增 `string/byte/shortint/longint/shortreal/chandle/type`；`parameter string P_PAYLOAD_FIFO_MODE` 不再把 `string` 误认为参数名，类型、名称、等号、值和注释可与同组 `parameter integer` 对齐。
+- `user_video_frame_buffer_write.sv` 只读检查只报告第 50 行；内存模拟后 `P_PAYLOAD_FIFO_MODE` 等号与其他 module parameter 统一为第 96 列，注释统一为第 149 列，RTL SHA256 未改变。
+- `user_ddr_app_driver.sv` 只读模拟确认：顶层四个及 generate 内一个 bare `=` `localparam` 全部被修复；普通/多行等号列统一为 96，9 条顶层续行统一为 value 列 100，首行无尾随空格，RTL SHA256 未改变。
+- Verilog/SystemVerilog grammar 增加通用变量作用域，覆盖 `always` 事件、`if/case` 条件和右值中的信号；非阻塞赋值目标同时支持行首及 `case` 分支冒号后的信号（包含位选）。
+- 真实 RTL 第 780--790 行只读匹配确认：普通赋值及 `2'b10` / `2'b01` / `default` 三个 `case` 分支都把 `r_outstanding_operation_count` 识别为 `variable.other.readwrite`，时钟、复位、selector 和右值信号由 `variable.other.read` 覆盖；RTL SHA256 未改变。
+- `format-cli.js` 新增 `--json` 智能体接口和 interfaceVersion 1 capabilities，返回状态、变更行和是否写入，以进程退出码表示执行结果；`package.json` 声明 `otter-fpga-format` 可执行入口，并增加 `otter-fpga-toolkit.formatFile` VS Code 程序化命令。CLI 必须显式选择 `--check` 或 `--write`；VS Code 命令默认只检查，并在返回对象中包含 `exitCode`。两个接口都仅在明确使用 write 模式时写入。
+- 验证：`npm.cmd run check` 40/40 PASS；真实 RTL 只读 `--check --json` 只报告第 31 行需格式化且 SHA256 保持不变，内存模拟后 `P_FILL_DATA` 注释从第 126 列移到第 153 列，module 参数/端口区注释列统一为 153，`P_ALIGNED_PROFILE` 续行仍分别位于 value 列及 value+1 列；仓库外候选 VSIX 共 17 个条目，版本仍为 `2.1.15`，包内已含程序化命令激活事件，六个关键源文件（包含两份 grammar）哈希均与工作树一致，无测试、凭据或内部指令文件入包。
+
+---
+
 ## v2.1.15 改动记录
 
 - 用户已完成候选包安装验证并授权发布；版本号更新为 `2.1.15`。

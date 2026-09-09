@@ -9,7 +9,7 @@
 | 一键例化 | `Ctrl+1` | 选中 module 声明，自动生成带注释对齐的例化模板 |
 | 代码排版 | `Ctrl+L` | 信号声明/例化端口按实际缩进自动对齐，统一注释格式 `,// 注释` |
 | 语法检查 | 保存自动 | 支持 Icarus Verilog / Vivado xvlog / ModelSim-Questa vlog |
-| 语法高亮 | 自动 | Verilog/SystemVerilog + SDC/XDC/CST 约束文件 |
+| 语法高亮 | 自动 | Verilog/SystemVerilog 关键字、常量、运算符和过程信号 + SDC/XDC/CST 约束文件 |
 | 定义跳转 | `F12` | 跳转到本地信号/参数，或跨文件跳转到例化模块定义 |
 | 悬停提示 | 鼠标悬停 | 显示定义行号 + 原代码 |
 | 代码补全 | 输入提示 | 25+ 模板 (module/always/case/fsm) + 当前文件信号名 |
@@ -64,6 +64,7 @@ test_module #(
 ### 代码排版 `Ctrl+L`
 
 - 自动对齐信号声明和例化端口
+- 多行 `localparam/parameter/wire` 声明的续行会对齐到首行 value 列，并保留续行间相对缩进；首行只有 `=` 的写法同样支持
 - 统一注释格式为 `,// 注释`
 
 同一套排版逻辑也可以在编辑器外调用，便于自动化任务复用 `Ctrl+L` 的实际实现：
@@ -72,11 +73,27 @@ test_module #(
 node .\format-cli.js --check E:\path\to\module.sv
 node .\format-cli.js --write E:\path\to\module.sv
 node .\format-cli.js --write --start-line 20 --end-line 80 E:\path\to\module.sv
+node .\format-cli.js --check --json E:\path\to\module.sv
 ```
 
 `--check` 只检查且不写文件；需要排版时退出码为 `1`。`--write` 才会原位修改文件。
 行号从 `1` 开始并包含首尾行；即使只处理一个范围，对齐列仍按完整文件计算，与编辑器选区执行
 `Ctrl+L` 的行为一致。命令保留原文件的 `CRLF/LF` 和 UTF-8 BOM。
+
+#### 智能体/自动化接口
+
+智能体优先调用 `--check --json`：退出码 `0` 表示无需修改，`1` 表示需要格式化，`2` 表示调用错误；JSON 返回 `status`、`changedLines`、`wrote` 和绝对文件路径。只有获得写入授权后才调用 `--write --json`。Node 调用方也可以直接引用 `format-cli.js` 导出的 `formatFile()`；`package.json` 同时声明可执行入口 `otter-fpga-format`。
+
+VS Code 内的其他扩展或智能体可以通过稳定命令接口调用已安装的插件：
+
+```javascript
+const result = await vscode.commands.executeCommand(
+    'otter-fpga-toolkit.formatFile',
+    {mode: 'check', file: 'E:\\path\\to\\module.sv'}
+);
+```
+
+`mode` 默认为 `check`，可选 `tabSize`、`startLine` 和 `endLine`（行号从 `1` 开始且包含首尾）；只有显式传入 `mode: 'write'` 才会写文件。返回值与 JSON CLI 共用 interfaceVersion 1 状态契约。VSIX 安装不会自动把 npm `bin` 加入系统 `PATH`；终端智能体应显式调用仓库或扩展目录中的 `format-cli.js`。
 
 ### 语法检查
 

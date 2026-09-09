@@ -12,7 +12,8 @@
     { "include": "#operators" },
     { "include": "#module_names" },
     { "include": "#inst_ports" },
-    { "include": "#signal_assignments" }
+    { "include": "#signal_assignments" },
+    { "include": "#variables" }
   ],
   "repository": {
     "comments": {
@@ -135,9 +136,14 @@
           "captures": { "3": { "name": "variable.other.readwrite" } }
         },
         {
-          "match": "^\\s*([A-Za-z_][A-Za-z0-9_$]*)(?=\\s*<=)",
-          "captures": { "1": { "name": "variable.other.readwrite" } }
+          "match": "(^\\s*|:\\s*)([A-Za-z_][A-Za-z0-9_$]*)(?=(?:\\s*\\[[^\\r\\n]*?\\])*\\s*<=)",
+          "captures": { "2": { "name": "variable.other.readwrite" } }
         }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        { "name": "variable.other.read", "match": "\\b[A-Za-z_][A-Za-z0-9_$]*\\b" }
       ]
     }
   }

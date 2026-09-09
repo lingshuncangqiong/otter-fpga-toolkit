@@ -153,6 +153,21 @@ test('Verilog/SystemVerilog grammar 使用递归连接表达式且不再依赖�
                 item => item.name === 'variable.other.port'
             )
         );
+        const assignmentPattern = grammar.repository.signal_assignments.patterns[1];
+        const caseAssignment = new RegExp(assignmentPattern.match).exec(
+            "            2'b10   : r_outstanding_operation_count <= r_outstanding_operation_count + 1'b1;"
+        );
+        assert.equal(caseAssignment[2], 'r_outstanding_operation_count');
+        assert.equal(assignmentPattern.captures['2'].name, 'variable.other.readwrite');
+        const indexedAssignment = new RegExp(assignmentPattern.match).exec('    r_data[index] <= next_data;');
+        assert.equal(indexedAssignment[2], 'r_data');
+        const variablePattern = grammar.repository.variables.patterns[0];
+        assert.equal(variablePattern.name, 'variable.other.read');
+        assert.deepEqual(
+            [...'posedge i_memory_clk'.matchAll(new RegExp(variablePattern.match, 'g'))].map(match => match[0]),
+            ['posedge', 'i_memory_clk']
+        );
+        assert.equal(grammar.patterns.at(-1).include, '#variables');
         assert.doesNotMatch(JSON.stringify(grammar.repository.inst_ports), /\(\?<=/);
         assert.doesNotMatch(JSON.stringify(grammar.repository.signal_assignments), /\(\?<=/);
     }

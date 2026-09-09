@@ -17,16 +17,21 @@
     "Other"
   ],
   "main": "./extension.js",
+  "bin": {
+    "otter-fpga-format": "./format-cli.js"
+  },
   "scripts": {
     "test": "node --test",
-    "check": "node --check extension.js && node --test"
+    "check": "node --check extension.js && node --test",
+    "format": "node format-cli.js"
   },
   "activationEvents": [
     "onLanguage:verilog",
     "onLanguage:systemverilog",
     "onLanguage:sdc",
     "onLanguage:xdc",
-    "onLanguage:cst"
+    "onLanguage:cst",
+    "onCommand:otter-fpga-toolkit.formatFile"
   ],
   "contributes": {
     "languages": [

@@ -29,6 +29,50 @@ function computeInstanceColumns(entries,tab){
     return columns;
 }
 
+function formatterInterface(request){
+    const formatter=require('./format-cli');
+    try{
+        const options=request&&typeof request==='object'?request:{};
+        const mode=options.mode||'check';
+        if(mode!=='check'&&mode!=='write')throw new Error('mode must be check or write');
+        const uriPath=options.uri&&typeof options.uri.fsPath==='string'?options.uri.fsPath:'';
+        const activePath=vscode.window&&vscode.window.activeTextEditor&&vscode.window.activeTextEditor.document.uri
+            ?vscode.window.activeTextEditor.document.uri.fsPath:'';
+        const file=typeof options.file==='string'&&options.file.trim()?options.file:uriPath||activePath;
+        if(!file)throw new Error('missing RTL file path and no active RTL editor');
+        const tabSize=options.tabSize===undefined?getTabSize():Number(options.tabSize);
+        if(!Number.isInteger(tabSize)||tabSize<1||tabSize>16)throw new Error('tabSize must be an integer within 1..16');
+        const lineNumber=(value,name)=>{
+            if(value===undefined||value===null)return null;
+            const number=Number(value);
+            if(!Number.isInteger(number)||number<1)throw new Error(`${name} must be a positive integer`);
+            return number;
+        };
+        const startLine=lineNumber(options.startLine,'startLine');
+        const endLine=lineNumber(options.endLine,'endLine');
+        if(startLine!==null&&endLine!==null&&startLine>endLine)throw new Error('startLine cannot be greater than endLine');
+        const absolutePath=path.resolve(file);
+        const openDocuments=vscode.workspace&&Array.isArray(vscode.workspace.textDocuments)?vscode.workspace.textDocuments:[];
+        const dirty=openDocuments.find(document=>document.isDirty&&document.uri&&document.uri.fsPath&&path.resolve(document.uri.fsPath).toLowerCase()===absolutePath.toLowerCase());
+        if(mode==='write'&&dirty)throw new Error('save the dirty editor before write mode');
+        const result=formatter.formatFile(absolutePath,{mode,tabSize,startLine,endLine});
+        const formattingRequired=mode==='check'&&result.changed;
+        return {
+            ...formatter.capabilities(),
+            ok:!formattingRequired,
+            status:formattingRequired?'formatting-required':(mode==='write'&&result.changed?'formatted':'unchanged'),
+            exitCode:formattingRequired?1:0,
+            mode,
+            file:result.absolutePath,
+            changed:result.changed,
+            changedLines:result.changedLines,
+            wrote:mode==='write'&&result.changed
+        };
+    }catch(error){
+        return {...formatter.capabilities(),ok:false,status:'error',exitCode:2,wrote:false,error:error.message};
+    }
+}
+
 const lintTimers = new Map();
 const lintSeq = new Map();
 
@@ -120,6 +164,9 @@ function activate(context) {
         });
         if(edits.length)await editor.edit(eb=>edits.forEach(x=>eb.replace(x.range,x.newText)));
     }));
+
+    // Stable programmatic formatter contract for VS Code extensions and in-editor agents.
+    context.subscriptions.push(vscode.commands.registerCommand('otter-fpga-toolkit.formatFile', request=>formatterInterface(request)));
 
     //===== xvlog =====
     context.subscriptions.push(vscode.commands.registerCommand('verilog-instantiate.xvlogLint', async () => {
@@ -231,7 +278,7 @@ function parseDeclBody(body){
         const tm=rest.match(/^(wire|reg|logic)\b/);
         if(tm){type+=' '+tm[1];rest=rest.slice(tm[0].length).replace(/^\s+/,'');}
     }else if(/^(parameter|localparam)$/.test(base)){
-        const tm=rest.match(/^(integer|real|realtime|time|logic|bit|int)\b/);
+        const tm=rest.match(/^(integer|real|realtime|time|logic|bit|int|string|byte|shortint|longint|shortreal|chandle|type)\b/);
         if(tm){type+=' '+tm[1];rest=rest.slice(tm[0].length).replace(/^\s+/,'');}
     }
     const sm=rest.match(/^signed\b/);
@@ -259,6 +306,27 @@ function declNames(decl){
         if(m)out.push(m[1]);
     }
     return out;
+}
+
+function expressionContinues(expression){
+    let round=0,square=0,curly=0,inString=false,escaped=false;
+    for(const char of expression){
+        if(inString){
+            if(escaped)escaped=false;
+            else if(char==='\\')escaped=true;
+            else if(char==='"')inString=false;
+            continue;
+        }
+        if(char==='"'){inString=true;continue;}
+        if(char==='(')round++;
+        else if(char===')')round=Math.max(0,round-1);
+        else if(char==='[')square++;
+        else if(char===']')square=Math.max(0,square-1);
+        else if(char==='{')curly++;
+        else if(char==='}')curly=Math.max(0,curly-1);
+    }
+    if(inString||round||square||curly)return true;
+    return /(?:&&|\|\||<<<?|>>>?|==?|!=?|<=?|>=?|[+\-*\/%&|^~?:])\s*$/.test(expression);
 }
 
 function parseLine(line, tab){
@@ -290,8 +358,8 @@ function parseLine(line, tab){
     let rest=d.rest||'';
     const tail=rest.match(/[,;]\s*$/)?rest.match(/[,;]\s*$/)[0].trim():'';
     rest=rest.replace(/[,;]\s*$/,'').trim();
-    let eq='';const em=rest.match(/^\s*=\s*(.+)$/);if(em)eq=em[1].trim();
-    return {ind,type:d.type,name:d.name,eq,tail,rest:eq?'':rest,width:d.width,cl:d.cl,rr:d.rr};
+    let eq='';const em=rest.match(/^\s*=\s*(.*)$/);const hasEq=!!em;if(em)eq=em[1].trim();
+    return {ind,type:d.type,name:d.name,hasEq,eq,tail,continues:hasEq&&!tail&&(!eq||expressionContinues(eq)),rest:hasEq?'':rest,width:d.width,cl:d.cl,rr:d.rr};
 }
 
 function doFmt(entry, cols, orig){
@@ -322,6 +390,7 @@ function doFmt(entry, cols, orig){
     // 信号声明
     const {bc,cp,nc,ec,vc,cc}=cols;
     let rest=entry.rest||'', tail=entry.tail||'', eq=entry.eq||'';
+    const hasEq=entry.hasEq||!!eq;
     let width='';
     if(entry.cl&&entry.rr)width='['+entry.cl+' '.repeat(Math.max(0,cp-entry.cl.length))+':'+entry.rr+']';
     else if(entry.width)width=entry.width;
@@ -330,7 +399,7 @@ function doFmt(entry, cols, orig){
     if(width)r+=width;
     r+=' '.repeat(Math.max(1,nc-r.length));
     r+=entry.name;
-    if(eq){r+=' '.repeat(Math.max(1,ec-r.length));r+='=';r+=' '.repeat(Math.max(1,vc-r.length));r+=eq;if(tail){r+=' '.repeat(Math.max(0,cc-r.length));r+=' '+tail;}else{r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}}
+    if(hasEq){r+=' '.repeat(Math.max(1,ec-r.length));r+='=';if(eq){r+=' '.repeat(Math.max(1,vc-r.length));r+=eq;}if(tail){r+=' '.repeat(Math.max(0,cc-r.length));r+=' '+tail;}else if(!entry.continues){r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}}
     else if(rest||tail){r+=' '.repeat(Math.max(1,cc-r.length));r+=rest+(tail?' '+tail:'');}
     else{r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}
     return r+cmSig;
@@ -351,7 +420,7 @@ function formatLineRange(lines,tabValue,startLine,endLine){
         if(p.tag==='inst_port'||p.tag==='inst_port_multi')continue;
         if(p.type.length>mt)mt=p.type.length;
         if(p.name.length>mn)mn=p.name.length;
-        if(p.eq){he=1;if(p.eq.length>me)me=p.eq.length;}
+        if(p.hasEq){he=1;if(p.eq.length>me)me=p.eq.length;}
         if(p.cl&&p.cl.length>mcl)mcl=p.cl.length;
     }
     if(!all.length||last<first)return {lines:lines.slice(),changes:[]};
@@ -366,12 +435,43 @@ function formatLineRange(lines,tabValue,startLine,endLine){
     const cc=padToTab(vc+me+1,tab)-1;
     const sigCols={bc,cp,nc,ec,vc,cc};
     const instColsByIndent=computeInstanceColumns(all,tab);
+    const declarationContinuations=new Map();
+    for(const entry of all){
+        if(!entry.continues)continue;
+        const contentLines=[];
+        let terminated=false;
+        for(let line=entry.i+1;line<lines.length&&line<=entry.i+256;line++){
+            if(byLine.has(line))break;
+            const code=lines[line].replace(/\/\/.*$/,'');
+            const firstToken=/\S/.exec(code);
+            if(firstToken&&!/^\s*\/\*/.test(code))contentLines.push({line,column:firstToken.index});
+            if(/;\s*$/.test(code)){
+                terminated=true;
+                break;
+            }
+        }
+        if(!terminated||!contentLines.length)continue;
+        const baseColumn=Math.min(...contentLines.map(item=>item.column));
+        for(const item of contentLines){
+            declarationContinuations.set(item.line,vc+(item.column-baseColumn));
+        }
+    }
 
     const formatted=lines.slice();
     const changes=[];
     for(let i=first;i<=last;i++){
         const entry=byLine.get(i);
-        if(!entry)continue;
+        if(!entry){
+            const targetColumn=declarationContinuations.get(i);
+            if(targetColumn===undefined)continue;
+            const content=lines[i].replace(/^\s*/,'');
+            const text=' '.repeat(targetColumn)+content;
+            if(text!==lines[i]){
+                formatted[i]=text;
+                changes.push({line:i,text});
+            }
+            continue;
+        }
         const cols=(entry.tag==='inst_port'||entry.tag==='inst_port_multi')?instColsByIndent.get(entry.ind.length):sigCols;
         const text=doFmt(entry,cols,lines[i]);
         if(text!==lines[i]){
@@ -713,5 +813,5 @@ function deactivate(){}
 module.exports={
     activate,
     deactivate,
-    __test:{normalizeTabSize,selectionEndLine,resolveLintToolName,missingLintToolMessage,isOwnedLintTempDir,computeInstanceColumns,parseDeclBody,declNames,parseLine,doFmt,formatLineRange,parseModule,spComma,genInst}
+    __test:{normalizeTabSize,selectionEndLine,resolveLintToolName,missingLintToolMessage,isOwnedLintTempDir,computeInstanceColumns,formatterInterface,parseDeclBody,declNames,expressionContinues,parseLine,doFmt,formatLineRange,parseModule,spComma,genInst}
 };

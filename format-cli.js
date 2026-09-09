@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 'use strict';
 
 const fs = require('node:fs');
@@ -20,21 +21,34 @@ function loadFormatter() {
 function usage() {
     return [
         'Usage:',
-        '  node format-cli.js --check [--tab-size N] [--start-line N --end-line N] <file>',
-        '  node format-cli.js --write [--tab-size N] [--start-line N --end-line N] <file>',
+        '  node format-cli.js --check [--json] [--tab-size N] [--start-line N --end-line N] <file>',
+        '  node format-cli.js --write [--json] [--tab-size N] [--start-line N --end-line N] <file>',
         '',
         'Line numbers are 1-based and inclusive. Column alignment is computed from the full file.'
     ].join('\n');
 }
 
+function capabilities() {
+    return {
+        tool: 'otter-fpga-format',
+        interfaceVersion: 1,
+        modes: ['check', 'write'],
+        supportedExtensions: ['.v', '.sv', '.vh', '.svh'],
+        lineNumbering: '1-based-inclusive',
+        exitCodes: {success: 0, formattingRequired: 1, error: 2}
+    };
+}
+
 function parseArgs(argv) {
-    const options = {mode: null, tabSize: 4, startLine: null, endLine: null, file: null};
+    const options = {mode: null, json: false, tabSize: 4, startLine: null, endLine: null, file: null};
     for (let index = 0; index < argv.length; index++) {
         const arg = argv[index];
         if (arg === '--check' || arg === '--write') {
             const mode = arg.slice(2);
             if (options.mode && options.mode !== mode) throw new Error('--check and --write are mutually exclusive');
             options.mode = mode;
+        } else if (arg === '--json') {
+            options.json = true;
         } else if (arg === '--tab-size' || arg === '--start-line' || arg === '--end-line') {
             const value = argv[++index];
             if (value === undefined || !/^\d+$/.test(value)) throw new Error(`${arg} requires a positive integer`);
@@ -105,27 +119,47 @@ function formatFile(filePath, options, formatter = loadFormatter()) {
     return {absolutePath, changedLines: result.changes.map(change => change.line + 1), changed: formatted !== original};
 }
 
-function main(argv = process.argv.slice(2)) {
+function main(argv = process.argv.slice(2), io = {stdout: process.stdout, stderr: process.stderr}) {
+    const stdout = io.stdout || process.stdout;
+    const stderr = io.stderr || process.stderr;
     try {
         const options = parseArgs(argv);
         if (options.help) {
-            process.stdout.write(`${usage()}\n`);
+            stdout.write(options.json ? `${JSON.stringify(capabilities())}\n` : `${usage()}\n`);
             return 0;
         }
         const result = formatFile(options.file, options);
+        const formattingRequired = options.mode === 'check' && result.changed;
+        const action = options.mode === 'write' && result.changed ? 'formatted' : 'unchanged';
+        if (options.json) {
+            stdout.write(`${JSON.stringify({
+                ...capabilities(),
+                ok: !formattingRequired,
+                status: formattingRequired ? 'formatting-required' : action,
+                mode: options.mode,
+                file: result.absolutePath,
+                changed: result.changed,
+                changedLines: result.changedLines,
+                wrote: options.mode === 'write' && result.changed
+            })}\n`);
+            return formattingRequired ? 1 : 0;
+        }
         if (options.mode === 'check' && result.changed) {
-            process.stderr.write(`FAIL formatting required: ${result.absolutePath} (${result.changedLines.length} lines)\n`);
+            stderr.write(`FAIL formatting required: ${result.absolutePath} (${result.changedLines.length} lines)\n`);
             return 1;
         }
-        const action = options.mode === 'write' && result.changed ? 'formatted' : 'unchanged';
-        process.stdout.write(`PASS ${action}: ${result.absolutePath}\n`);
+        stdout.write(`PASS ${action}: ${result.absolutePath}\n`);
         return 0;
     } catch (error) {
-        process.stderr.write(`ERROR ${error.message}\n${usage()}\n`);
+        if (argv.includes('--json')) {
+            stdout.write(`${JSON.stringify({...capabilities(), ok: false, status: 'error', error: error.message})}\n`);
+        } else {
+            stderr.write(`ERROR ${error.message}\n${usage()}\n`);
+        }
         return 2;
     }
 }
 
 if (require.main === module) process.exitCode = main();
 
-module.exports = {formatFile, joinText, loadFormatter, main, parseArgs, splitText, usage};
+module.exports = {capabilities, formatFile, joinText, loadFormatter, main, parseArgs, splitText, usage};
