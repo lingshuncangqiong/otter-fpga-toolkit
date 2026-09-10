@@ -57,6 +57,13 @@ test('手动 lint 工具覆盖优先于用户默认设置', () => {
     assert.match(missingLintToolMessage('xvlog'), /xvlogPath/);
 });
 
+test('自动 lint 按文件语言选择工具，显式设置不受影响', () => {
+    assert.deepEqual(extension.__test.autoLintToolOrder('design.sv'), ['xvlog', 'iverilog']);
+    assert.deepEqual(extension.__test.autoLintToolOrder('header.SVH'), ['xvlog', 'iverilog']);
+    assert.deepEqual(extension.__test.autoLintToolOrder('design.v'), ['iverilog', 'xvlog']);
+    assert.equal(resolveLintToolName('iverilog'), 'iverilog');
+});
+
 test('lint 清理边界只接受系统临时目录下的 Otter 自有目录', () => {
     assert.equal(isOwnedLintTempDir(path.join(os.tmpdir(), 'otter-iverilog-abc123')), true);
     assert.equal(isOwnedLintTempDir(path.join(os.tmpdir(), 'otter-xvlog-abc123')), true);

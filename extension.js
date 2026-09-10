@@ -614,6 +614,7 @@ function runIverilog(uri,diagColl,fp,seq,exe){
                     ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,sev));
                 }
             }
+            for(const diagnostic of ps)diagnostic.source='Otter / iverilog';
             applyLintDiagnostics(uri,diagColl,seq,ps);
         }finally{
             cleanupDir(workDir);
@@ -648,6 +649,7 @@ function runModelsim(uri,diagColl,fp,seq){
                     if(ln>=0)ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,m[1]==='Warning'?vscode.DiagnosticSeverity.Warning:vscode.DiagnosticSeverity.Error));
                 }
             }
+            for(const diagnostic of ps)diagnostic.source='Otter / modelsim';
             applyLintDiagnostics(uri,diagColl,seq,ps);
         }finally{
             cleanupDir(workDir);
@@ -682,12 +684,16 @@ function runXvlog(uri,diagColl,fp,seq){
                     if(ln>=0)ps.push(new vscode.Diagnostic(new vscode.Range(ln,0,ln,9999),msg,isWarn?vscode.DiagnosticSeverity.Warning:vscode.DiagnosticSeverity.Error));
                 }
             }
+            for(const diagnostic of ps)diagnostic.source='Otter / xvlog';
             applyLintDiagnostics(uri,diagColl,seq,ps);
         }finally{
             cleanup();
         }
     });
     return true;
+}
+function autoLintToolOrder(fp){
+    return /\.svh?$/i.test(fp)?['xvlog','iverilog']:['iverilog','xvlog'];
 }
 function missingLintToolMessage(tool){
     if(tool==='iverilog')return '未找到 Icarus Verilog (iverilog)，请安装工具或调整 Lint Tool 设置';
@@ -708,9 +714,10 @@ function doLint(uri,diagColl,force,toolOverride){
         else if(tool==='xvlog')started=runXvlog(uri,diagColl,fp,seq);
         else if(tool==='modelsim')started=runModelsim(uri,diagColl,fp,seq);
         else{
-            var iverilog=findIverilog();
-            if(iverilog)started=runIverilog(uri,diagColl,fp,seq,iverilog);
-            else started=runXvlog(uri,diagColl,fp,seq);
+            for(const candidate of autoLintToolOrder(fp)){
+                started=candidate==='xvlog'?runXvlog(uri,diagColl,fp,seq):runIverilog(uri,diagColl,fp,seq);
+                if(started)break;
+            }
         }
         if(!started){
             clearLintDiagnostics(uri,diagColl,seq);
@@ -846,5 +853,5 @@ function deactivate(){}
 module.exports={
     activate,
     deactivate,
-    __test:{normalizeTabSize,selectionEndLine,resolveLintToolName,missingLintToolMessage,isOwnedLintTempDir,computeInstanceColumns,formatterInterface,parseDeclBody,declNames,expressionContinues,parseLine,doFmt,formatLineRange,parseModule,spComma,genInst}
+    __test:{autoLintToolOrder,normalizeTabSize,selectionEndLine,resolveLintToolName,missingLintToolMessage,isOwnedLintTempDir,computeInstanceColumns,formatterInterface,parseDeclBody,declNames,expressionContinues,parseLine,doFmt,formatLineRange,parseModule,spComma,genInst}
 };

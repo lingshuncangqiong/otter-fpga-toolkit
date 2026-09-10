@@ -220,7 +220,7 @@
           "type": "string",
           "default": "auto",
           "enum": ["auto", "xvlog", "iverilog", "modelsim"],
-          "enumDescriptions": ["自动 (优先 iverilog)", "Vivado xvlog", "Icarus Verilog (iverilog)", "ModelSim/Questa (vlog)"],
+          "enumDescriptions": ["自动 (.sv/.svh 优先 xvlog，其他优先 iverilog)", "Vivado xvlog", "Icarus Verilog (iverilog)", "ModelSim/Questa (vlog)"],
           "description": "语法检查工具"
         },
         "verilogInstantiate.xvlogPath": {

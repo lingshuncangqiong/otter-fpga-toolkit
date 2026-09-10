@@ -102,10 +102,12 @@ const result = await vscode.commands.executeCommand(
 
 | 工具 | 速度 | 说明 |
 |------|------|------|
-| `auto` (默认) | 快 | 优先使用 iverilog |
+| `auto` (默认) | 快 | `.sv`/`.svh` 优先 xvlog，其他优先 iverilog；未安装时尝试另一工具 |
 | `iverilog` | ~400ms | 需安装 Icarus Verilog |
 | `xvlog` | 数秒 | 需安装 Vivado，更严格 |
 | `modelsim` | 中等 | 需安装 ModelSim/Questa |
+
+SystemVerilog 的数组赋值模式（如 "'{default:'0}"）在部分 Icarus 版本中不受支持，即使使用 -g2012 也可能报 syntax error。遇到此类情况可显式选择 xvlog；插件保留检查器原始报错，并以 Otter / 工具名标注来源，不屏蔽语法错误。自动模式仅在工具未找到时尝试另一工具，不因编译失败切换。
 
 首次使用需配置路径（如 `xvlogPath`），扩展会自动查找常见安装位置。
 
