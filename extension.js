@@ -267,6 +267,21 @@ function activate(context) {
 
 function isV(d){return ['verilog','systemverilog'].includes(d.languageId);}
 
+// 维度内也可能含索引表达式，例如 [P_WIDTHS[0]-1:0]。
+function takeDimensions(text){
+    let rest=text.trimStart(),dimensions='';
+    while(rest.startsWith('[')){
+        let depth=0,end=-1;
+        for(let i=0;i<rest.length;i++){
+            if(rest[i]==='[')depth++;
+            else if(rest[i]===']'&&--depth===0){end=i+1;break;}
+        }
+        if(end<0)return null;
+        dimensions+=rest.slice(0,end);
+        rest=rest.slice(end).trimStart();
+    }
+    return {dimensions,rest};
+}
 function parseDeclBody(body){
     if(!body)return null;
     let rest=body.replace(/\t/g,' ').replace(/^\s+/,'').replace(/\s+$/,'');
@@ -282,16 +297,12 @@ function parseDeclBody(body){
         const tm=rest.match(/^(integer|real|realtime|time|logic|bit|int|string|byte|shortint|longint|shortreal|chandle|type)\b/);
         if(tm){type+=' '+tm[1];rest=rest.slice(tm[0].length).replace(/^\s+/,'');}
     }
-    const sm=rest.match(/^signed\b/);
-    if(sm){type+=' signed';rest=rest.slice(sm[0].length).replace(/^\s+/,'');}
+    const sm=rest.match(/^(signed|unsigned)\b/);
+    if(sm){type+=' '+sm[1];rest=rest.slice(sm[0].length).replace(/^\s+/,'');}
     let width='',cl='',rr='';
-    const wm=rest.match(/^\[([^\]]*)\]\s*/);
-    if(wm){
-        width='['+wm[1]+']';
-        const cm=wm[1].match(/^(.+?)\s*:\s*(\S+)$/);
-        if(cm){cl=cm[1];rr=cm[2];}
-        rest=rest.slice(wm[0].length).replace(/^\s+/,'');
-    }
+    const packed=takeDimensions(rest);
+    if(!packed)return null;
+    width=packed.dimensions;rest=packed.rest;
     const nm=rest.match(/^(\w+)\s*(.*)$/);
     if(!nm)return null;
     return {base,type,width,cl,rr,name:nm[1],rest:nm[2]||''};
@@ -356,11 +367,13 @@ function parseLine(line, tab){
     // 信号声明
     const d=parseDeclBody(rawBody);
     if(!d)return null;
-    let rest=d.rest||'';
+    const unpacked=takeDimensions(d.rest||'');
+    if(!unpacked)return null;
+    let rest=unpacked.rest;
     const tail=rest.match(/[,;]\s*$/)?rest.match(/[,;]\s*$/)[0].trim():'';
     rest=rest.replace(/[,;]\s*$/,'').trim();
     let eq='';const em=rest.match(/^\s*=\s*(.*)$/);const hasEq=!!em;if(em)eq=em[1].trim();
-    return {ind,type:d.type,name:d.name,hasEq,eq,tail,continues:hasEq&&!tail&&(!eq||expressionContinues(eq)),rest:hasEq?'':rest,width:d.width,cl:d.cl,rr:d.rr};
+    return {ind,type:d.type,name:d.name,unpacked:unpacked.dimensions,hasEq,eq,tail,continues:hasEq&&!tail&&(!eq||expressionContinues(eq)),rest:hasEq?'':rest,width:d.width,cl:d.cl,rr:d.rr};
 }
 
 function doFmt(entry, cols, orig){
@@ -400,6 +413,7 @@ function doFmt(entry, cols, orig){
     if(width)r+=width;
     r+=' '.repeat(Math.max(1,nc-r.length));
     r+=entry.name;
+    if(entry.unpacked)r+=' '+entry.unpacked;
     if(hasEq){r+=' '.repeat(Math.max(1,ec-r.length));r+='=';if(eq){r+=' '.repeat(Math.max(1,vc-r.length));r+=eq;}if(tail){r+=' '.repeat(Math.max(0,cc-r.length));r+=' '+tail;}else if(!entry.continues){r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}}
     else if(rest||tail){r+=' '.repeat(Math.max(1,cc-r.length));r+=rest+(tail?' '+tail:'');}
     else{r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}
@@ -407,20 +421,20 @@ function doFmt(entry, cols, orig){
 }
 
 function computeDeclarationColumns(entries,tab){
-    let mt=0,mn=0,me=0,mcl=0,he=0;
+    // 长字段只影响本行，不让整组追随其长度。这里只限制对齐填充，不截断或拆行。
+    let mt=0,mn=0,me=0,he=0;
     const indent=entries[0].ind.length;
     for(const p of entries){
         mt=Math.max(mt,p.type.length);
-        mn=Math.max(mn,p.name.length);
-        if(p.hasEq){he=1;me=Math.max(me,p.eq.length);}
-        if(p.cl)mcl=Math.max(mcl,p.cl.length);
+        mn=Math.max(mn,Math.min(40,p.name.length+(p.unpacked?1+p.unpacked.length:0)));
+        if(p.hasEq){he=1;me=Math.max(me,Math.min(24,p.eq.length));}
     }
-    const bc=padToTab(indent+mt+1,tab)+tab;
-    const cp=mcl?padToTab(bc+mcl+2,tab)-bc-2:0;
+    const bc=padToTab(indent+mt+1,tab);
+    const cp=0;
     let mb=0;
     for(const p of entries){
         const width=p.cl?'['+p.cl+' '.repeat(Math.max(0,cp-p.cl.length))+':'+p.rr+']':p.width;
-        mb=Math.max(mb,(width||'').length);
+        mb=Math.max(mb,Math.min(32,(width||'').length));
     }
     const nc=padToTab(bc+mb+1,tab);
     const ec=padToTab(nc+mn+1,tab);

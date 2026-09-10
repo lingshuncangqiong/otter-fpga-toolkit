@@ -67,7 +67,7 @@ test('check 不改文件，write 与 Ctrl+L 共用格式并保持 CRLF', t => {
     assert.equal(write.changed, true);
     const formatted = fs.readFileSync(filePath, 'utf8');
     assert.match(formatted, /wire\s+a\s+;\/\/ first/);
-    assert.match(formatted, /wire\s+\[7\s+:0\]\s+longer_name\s+;\/\/ second/);
+    assert.match(formatted, /wire\s+\[7:0\]\s+longer_name\s+;\/\/ second/);
     assert.equal(formatted.startsWith('\uFEFF'), true);
     assert.equal((formatted.match(/\r\n/g) || []).length, 3);
     assert.equal(/(^|[^\r])\n/.test(formatted), false);

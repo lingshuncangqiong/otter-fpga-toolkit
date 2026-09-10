@@ -204,6 +204,39 @@ test('SystemVerilog typed parameter 保留类型并与 integer 参数对齐', ()
     assert.equal(formatted[0].indexOf('//'), formatted[1].indexOf('//'));
 });
 
+test('数组声明区分 packed/unpacked 维度与初值，支持多维及维度中的索引', () => {
+    const source = [
+        "reg [P_PPC*24-1:0] r_rgb_dly_array [0:20] = '{default:'0}; // delay",
+        "reg [P_PPC*24-1:0] r_other [0:20] = '{default:'0}; // other",
+        "logic unsigned [1:0][P_WIDTHS[0]-1:0] r_matrix [0:2][0:3] = '{default:'0};",
+        'logic [7:0] r_dynamic [];',
+        'logic [7:0] r_queue [$];'
+    ];
+    const parsed = parseLine(source[2], 4);
+    assert.equal(parsed.width, '[1:0][P_WIDTHS[0]-1:0]');
+    assert.equal(parsed.unpacked, '[0:2][0:3]');
+    assert.equal(parsed.eq, "'{default:'0}");
+    const fmt = lines => formatLineRange(lines, 4, 0, lines.length - 1).lines;
+    const formatted = fmt(source);
+    assert.equal(formatted[0].indexOf('='), formatted[1].indexOf('='));
+    assert.match(formatted[0], /r_rgb_dly_array \[0:20\]\s+=/);
+    assert.deepEqual(fmt(formatted), formatted);
+    assert.equal(formatted.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
+    assert.equal(formatLineRange(source, 4, 1, 1).lines[1], formatted[1]);
+});
+
+test('长维度、名称和初值不会无上限撑宽同组短声明', () => {
+    const source = [
+        'reg r_valid = 0; // valid',
+        `reg [P_${'WIDTH_'.repeat(20)}-1:0] r_${'data_'.repeat(20)} [0:20] = {${'P_DATA, '.repeat(30)}P_DATA}; // wide`
+    ];
+    const fmt = lines => formatLineRange(lines, 4, 0, lines.length - 1).lines;
+    const formatted = fmt(source);
+    assert.ok(formatted[0].indexOf('//') < 140);
+    assert.deepEqual(fmt(formatted), formatted);
+    assert.equal(formatted.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
+});
+
 test('长参数不撑宽端口和寄存器，完整模块格式化保持幂等', () => {
     const source = [
         'module demo #(',
