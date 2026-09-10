@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const {registerWorkspaceFeatures} = require('./workspace-features');
+const {maskNonCode} = require('./rtl-parser');
 
 function padToTab(c,t){return Math.ceil(c/t)*t;}
 function normalizeTabSize(value){const n=Number(value);if(!Number.isFinite(n))return 4;return Math.min(16,Math.max(1,Math.trunc(n)));}
@@ -402,81 +403,113 @@ function doFmt(entry, cols, orig){
     if(hasEq){r+=' '.repeat(Math.max(1,ec-r.length));r+='=';if(eq){r+=' '.repeat(Math.max(1,vc-r.length));r+=eq;}if(tail){r+=' '.repeat(Math.max(0,cc-r.length));r+=' '+tail;}else if(!entry.continues){r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}}
     else if(rest||tail){r+=' '.repeat(Math.max(1,cc-r.length));r+=rest+(tail?' '+tail:'');}
     else{r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}
-    return r+cmSig;
+    return (r+cmSig).trimEnd();
+}
+
+function computeDeclarationColumns(entries,tab){
+    let mt=0,mn=0,me=0,mcl=0,he=0;
+    const indent=entries[0].ind.length;
+    for(const p of entries){
+        mt=Math.max(mt,p.type.length);
+        mn=Math.max(mn,p.name.length);
+        if(p.hasEq){he=1;me=Math.max(me,p.eq.length);}
+        if(p.cl)mcl=Math.max(mcl,p.cl.length);
+    }
+    const bc=padToTab(indent+mt+1,tab)+tab;
+    const cp=mcl?padToTab(bc+mcl+2,tab)-bc-2:0;
+    let mb=0;
+    for(const p of entries){
+        const width=p.cl?'['+p.cl+' '.repeat(Math.max(0,cp-p.cl.length))+':'+p.rr+']':p.width;
+        mb=Math.max(mb,(width||'').length);
+    }
+    const nc=padToTab(bc+mb+1,tab);
+    const ec=padToTab(nc+mn+1,tab);
+    const vc=padToTab(ec+(he?1:0),tab);
+    const cc=padToTab(vc+me+1,tab)-1;
+    return {bc,cp,nc,ec,vc,cc};
 }
 
 function formatLineRange(lines,tabValue,startLine,endLine){
     const tab=normalizeTabSize(tabValue);
     const first=Math.max(0,Number.isFinite(startLine)?Math.trunc(startLine):0);
     const last=Math.min(lines.length-1,Number.isFinite(endLine)?Math.trunc(endLine):lines.length-1);
-
-    // 列位置始终按完整文档计算，保持与编辑器 Ctrl+L 的当前行/选区行为一致。
-    let mt=0,mn=0,me=0,mcl=0,he=0;
+    // 读取整份文档识别分组，但列宽只由所属组决定，写入仍限于选区。
+    const codeLines=maskNonCode(lines.join('\n')).split('\n');
     const all=[],byLine=new Map();
     for(let i=0;i<lines.length;i++){
+        if(!codeLines[i].trim())continue;
         const p=parseLine(lines[i],tab);
         if(!p)continue;
         const entry={i,...p};all.push(entry);byLine.set(i,entry);
-        if(p.tag==='inst_port'||p.tag==='inst_port_multi')continue;
-        if(p.type.length>mt)mt=p.type.length;
-        if(p.name.length>mn)mn=p.name.length;
-        if(p.hasEq){he=1;if(p.eq.length>me)me=p.eq.length;}
-        if(p.cl&&p.cl.length>mcl)mcl=p.cl.length;
     }
     if(!all.length||last<first)return {lines:lines.slice(),changes:[]};
 
-    const bc=padToTab(mt+1,tab)+tab;
-    const cp=mcl?padToTab(bc+mcl+2,tab)-bc-2:0;
-    let mb=0;
-    for(const p of all){if(p.tag==='inst_port'||p.tag==='inst_port_multi')continue;let w=0;if(p.cl){w=p.cl.length+Math.max(0,cp-p.cl.length)+1+(p.rr?p.rr.length:1)+2;}if(w>mb)mb=w;}
-    const nc=padToTab(bc+mb+1,tab);
-    const ec=padToTab(nc+mn+1,tab);
-    const vc=padToTab(ec+(he?1:0),tab);
-    const cc=padToTab(vc+me+1,tab)-1;
-    const sigCols={bc,cp,nc,ec,vc,cc};
-    const instColsByIndent=computeInstanceColumns(all,tab);
-    const declarationContinuations=new Map();
+    // 完整的跨行声明仍属于首行所在组，不被表达式续行切开。
     for(const entry of all){
         if(!entry.continues)continue;
         const contentLines=[];
-        let terminated=false;
         for(let line=entry.i+1;line<lines.length&&line<=entry.i+256;line++){
             if(byLine.has(line))break;
-            const code=lines[line].replace(/\/\/.*$/,'');
+            const code=codeLines[line];
+            if(/^\s*(?:always|endmodule|endgenerate|endfunction|endtask|assign|module|generate)\b/.test(code))break;
             const firstToken=/\S/.exec(code);
-            if(firstToken&&!/^\s*\/\*/.test(code))contentLines.push({line,column:firstToken.index});
+            if(firstToken)contentLines.push({line,column:firstToken.index});
             if(/;\s*$/.test(code)){
-                terminated=true;
+                entry.continuationEnd=line;
+                entry.continuationLines=contentLines;
                 break;
             }
         }
-        if(!terminated||!contentLines.length)continue;
-        const baseColumn=Math.min(...contentLines.map(item=>item.column));
-        for(const item of contentLines){
-            declarationContinuations.set(item.line,vc+(item.column-baseColumn));
-        }
     }
 
-    const formatted=lines.slice();
-    const changes=[];
+    const kindOf=p=>p.tag?'instance':/^(parameter|localparam)\b/.test(p.type)?'parameter':
+        /^(input|output|inout)\b/.test(p.type)?'port':p.type==='genvar'?'genvar':'signal';
+    const groups=[];
+    let group,previous;
+    for(const entry of all){
+        const kind=kindOf(entry);
+        let boundary=!previous||kind!==group.kind||entry.ind.length!==group.indent;
+        if(!boundary){
+            for(let line=(previous.continuationEnd??previous.i)+1;line<entry.i;line++){
+                // 普通注释可以留在同组；空行、分区标题、预处理和其它代码分组。
+                if(!lines[line].trim()||codeLines[line].trim()||/^\s*(?:\/\/{1,}[-=*]{3,}|\/\*[-=*]{3,})/.test(lines[line])){
+                    boundary=true;break;
+                }
+            }
+        }
+        if(boundary){group={kind,indent:entry.ind.length,entries:[]};groups.push(group);}
+        group.entries.push(entry);
+        previous=entry;
+    }
+    const columnsByLine=new Map(),declarationContinuations=new Map();
+    for(const current of groups){
+        const cols=current.kind==='instance'
+            ?computeInstanceColumns(current.entries,tab).get(current.indent)
+            :computeDeclarationColumns(current.entries,tab);
+        for(const entry of current.entries){
+            columnsByLine.set(entry.i,cols);
+            const content=entry.continuationLines;
+            if(!content||!content.length)continue;
+            const baseColumn=Math.min(...content.map(item=>item.column));
+            for(const item of content){
+                declarationContinuations.set(item.line,cols.vc+item.column-baseColumn);
+            }
+        }
+    }
+    const formatted=lines.slice(),changes=[];
     for(let i=first;i<=last;i++){
         const entry=byLine.get(i);
-        if(!entry){
+        let output;
+        if(entry){
+            output=doFmt(entry,columnsByLine.get(i),lines[i]);
+        }else{
             const targetColumn=declarationContinuations.get(i);
             if(targetColumn===undefined)continue;
-            const content=lines[i].replace(/^\s*/,'');
-            const text=' '.repeat(targetColumn)+content;
-            if(text!==lines[i]){
-                formatted[i]=text;
-                changes.push({line:i,text});
-            }
-            continue;
+            output=' '.repeat(targetColumn)+lines[i].replace(/^\s*/,'');
         }
-        const cols=(entry.tag==='inst_port'||entry.tag==='inst_port_multi')?instColsByIndent.get(entry.ind.length):sigCols;
-        const text=doFmt(entry,cols,lines[i]);
-        if(text!==lines[i]){
-            formatted[i]=text;
-            changes.push({line:i,text});
+        if(output!==lines[i]){
+            formatted[i]=output;
+            changes.push({line:i,text:output});
         }
     }
     return {lines:formatted,changes};

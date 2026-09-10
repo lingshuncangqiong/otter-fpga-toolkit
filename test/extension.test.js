@@ -197,6 +197,98 @@ test('SystemVerilog typed parameter 保留类型并与 integer 参数对齐', ()
     assert.equal(formatted[0].indexOf('//'), formatted[1].indexOf('//'));
 });
 
+test('长参数不撑宽端口和寄存器，完整模块格式化保持幂等', () => {
+    const source = [
+        'module demo #(',
+        '    parameter integer P_WORD_DW = 32,',
+        '    localparam integer P_LONG = (P_WORD_DW > 8) ? P_WORD_DW * P_WORD_DW + P_WORD_DW : P_WORD_DW',
+        ')(',
+        '    input i_clk,',
+        '    input [P_WORD_DW-1:0] i_data,',
+        '    output o_valid',
+        ');',
+        'reg [7:0] r_data = 0;',
+        'reg r_valid = 0;',
+        'assign o_valid = r_valid;',
+        'endmodule'
+    ];
+    const fmt = lines => formatLineRange(lines, 4, 0, lines.length - 1).lines;
+    const result = fmt(source);
+    const shortParameter = source.map(line => line.includes('localparam') ? '    localparam integer P_LONG = 1' : line);
+    assert.deepEqual(result.slice(4), fmt(shortParameter).slice(4));
+    assert.equal(result[4].indexOf('i_clk'), result[5].indexOf('i_data'));
+    assert.equal(result[8].indexOf('='), result[9].indexOf('='));
+    assert.ok(result[4].length < 60);
+    assert.ok(result.every(line => !/\s+$/.test(line)));
+    assert.deepEqual(fmt(result), result);
+    assert.equal(result.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
+});
+
+test('空行、分区与缩进隔离声明组，普通注释不破坏组内对齐', () => {
+    const source = [
+        'reg short_name;',
+        '// 同组状态说明',
+        'reg [7:0] medium_name;',
+        '',
+        'reg an_extremely_long_name_in_another_group;',
+        '/***************wire******************/',
+        'wire w_a;',
+        '    reg deeply_nested_and_very_long_name;',
+        'wire w_b;'
+    ];
+    const result = formatLineRange(source, 4, 0, source.length - 1).lines;
+    assert.equal(result[0].indexOf('short_name'), result[2].indexOf('medium_name'));
+    assert.equal(result[6].indexOf('w_a'), result[8].indexOf('w_b'));
+    assert.ok(result[6].length < 30);
+    for(const index of [1, 3, 5]) assert.equal(result[index], source[index]);
+    assert.deepEqual(formatLineRange(result, 4, 0, result.length - 1).lines, result);
+});
+
+test('多模块和同缩进的不同实例分别对齐，不改注释内的伪声明', () => {
+    const source = [
+        'module a;',
+        'wire x;',
+        'child first (',
+        '    .short(x),',
+        '    .other(x)',
+        ');',
+        'child second (',
+        '    .a_much_longer_port_name(a_very_long_connection)',
+        ');',
+        'endmodule',
+        'module b;',
+        'wire a_long_name_in_a_different_module;',
+        '/*',
+        'wire DO_NOT_FORMAT_THIS_COMMENT;',
+        '*/',
+        'endmodule'
+    ];
+    const result = formatLineRange(source, 4, 0, source.length - 1).lines;
+    assert.equal(result[1], formatLineRange(['wire x;'], 4, 0, 0).lines[0]);
+    assert.ok(result[3].indexOf('(') < result[7].indexOf('('));
+    assert.equal(result[3].indexOf('('), result[4].indexOf('('));
+    assert.equal(result[13], source[13]);
+    assert.deepEqual(formatLineRange(result, 4, 0, result.length - 1).lines, result);
+});
+
+test('范围格式化复用所属组与多行声明的列宽，结果与整文件对应行一致', () => {
+    const source = [
+        'localparam integer P_WIDTH = 32;',
+        'localparam integer P_MULTI =',
+        '    (P_WIDTH > 16) ?',
+        '        P_WIDTH : 16;',
+        'localparam integer P_OTHER = 1;',
+        '',
+        'reg r_valid = 0;'
+    ];
+    const full = formatLineRange(source, 4, 0, source.length - 1).lines;
+    const selected = formatLineRange(source, 4, 2, 3).lines;
+    assert.deepEqual(selected.slice(2, 4), full.slice(2, 4));
+    assert.equal(full[2].search(/\S/), full[0].indexOf('32'));
+    assert.equal(full[3].search(/\S/), full[2].search(/\S/) + 4);
+    for(const index of [0, 1, 4, 5, 6]) assert.equal(selected[index], source[index]);
+});
+
 test('VS Code 智能体接口默认只检查，显式 write 才写入', t => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-vscode-api-'));
     t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));

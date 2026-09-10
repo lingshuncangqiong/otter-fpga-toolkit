@@ -256,6 +256,7 @@ git push origin main
 
 ## 当前开发改动（未发布）
 
+- 对齐计算改为局部声明/例化分组：长参数、其它模块和深层generate不再拉宽无关区域；选区格式化仍读取完整所属组，多行声明续行保持相对缩进，纯注释中的伪声明不参与。CLI与Ctrl+L共用实现，模块参数末行不再生成尾随空格。
 - 版本号保持 `2.1.15`，正式 VSIX 不覆盖。
 - Ctrl+L / `format-cli` 识别带 `=` 且首行未以分号结束的多行声明，把后续表达式内容整体对齐到首行 value 列，同时保留续行之间原有的相对缩进。
 - 多行声明首行不再为了虚构的结束列补尾随空格；目标 `user_video_frame_buffer_read.sv` 只读验证覆盖 `P_PAYLOAD_RAM_DEPTH`、`P_LINE_WORD_COUNT_DW` 和 `P_ALIGNED_PROFILE`。

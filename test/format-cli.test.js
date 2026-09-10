@@ -76,7 +76,7 @@ test('check 不改文件，write 与 Ctrl+L 共用格式并保持 CRLF', t => {
     assert.equal(clean.changed, false);
 });
 
-test('行范围只改指定行，但列位置仍按完整文件计算', t => {
+test('行范围只改指定行，但列位置仍按完整所属声明组计算', t => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-format-range-'));
     t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));
     const filePath = path.join(tempDir, 'range.v');
@@ -88,4 +88,18 @@ test('行范围只改指定行，但列位置仍按完整文件计算', t => {
     const lines = fs.readFileSync(filePath, 'utf8').split('\n');
     assert.notEqual(lines[0], 'wire a;// first');
     assert.equal(lines[1], 'wire [31:0] much_longer_name;// second');
+});
+
+test('CLI只格式化选中组，长参数不影响它且保留混合换行', t => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-format-groups-'));
+    t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));
+    const filePath = path.join(tempDir, 'groups.v');
+    const original = 'localparam integer P_BIG = REALLY_LONG_EXPRESSION + ANOTHER_LONG_TERM;\r\n\r\nreg a = 0;\nreg b = 0;\r\n';
+    fs.writeFileSync(filePath, original);
+    formatFile(filePath, {mode: 'write', tabSize: 4, startLine: 3, endLine: 4});
+    const actual = fs.readFileSync(filePath, 'utf8');
+    assert.ok(actual.startsWith(original.split('reg a')[0]));
+    assert.deepEqual(actual.match(/\r\n|\n/g), original.match(/\r\n|\n/g));
+    assert.ok(actual.split(/\r?\n/)[2].length < 45);
+    assert.equal(formatFile(filePath, {mode: 'check', tabSize: 4, startLine: 3, endLine: 4}).changed, false);
 });
