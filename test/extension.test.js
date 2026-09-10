@@ -204,6 +204,50 @@ test('SystemVerilog typed parameter 保留类型并与 integer 参数对齐', ()
     assert.equal(formatted[0].indexOf('//'), formatted[1].indexOf('//'));
 });
 
+test('标量声明不为缺失的位宽和初值预留空列', () => {
+    const source = ['wire a;', 'wire longer_name;'];
+    const result = formatLineRange(source, 4, 0, 1).lines;
+    assert.equal(result[0], 'wire    a           ;');
+    assert.equal(result[1], 'wire    longer_name ;');
+    assert.deepEqual(formatLineRange(result, 4, 0, 1).lines, result);
+
+    const mixed = ['reg [7:0] r_data = 0;', 'reg r_valid = 0;'];
+    const aligned = formatLineRange(mixed, 4, 0, 1).lines;
+    assert.equal(aligned[0].indexOf('r_data'), aligned[1].indexOf('r_valid'));
+    assert.equal(aligned[0].indexOf('='), aligned[1].indexOf('='));
+    for(const pair of [
+        ['input abc, // a', 'input def // b'],
+        ['parameter P_A = 1234567, // a', 'parameter P_B = 1234567 // b']
+    ]) {
+        const tail = formatLineRange(pair, 4, 0, 1).lines;
+        assert.equal(tail[0].indexOf('//'), tail[1].indexOf('//'));
+        assert.deepEqual(formatLineRange(tail, 4, 0, 1).lines, tail);
+    }
+});
+
+test('格式化保留字符串中的注释标记、空格、制表符与转义引号', () => {
+    const value = '"https://host/a  b\\\"c\tend"';
+    const source = [
+        `parameter string P_PATH = ${value}; // 地址`,
+        '',
+        `    .P_TEXT(${value}), // 文本`,
+        '    .P_OTHER("/* content */")'
+    ];
+    const result = formatLineRange(source, 4, 0, source.length - 1).lines;
+    assert.equal(parseLine(result[0], 4).eq, value);
+    assert.equal(parseLine(result[2], 4).conn, value);
+    assert.equal(parseLine(result[3], 4).conn, '"/* content */"');
+    assert.ok(result[0].endsWith('// 地址'));
+    assert.ok(result[2].endsWith('// 文本'));
+    assert.deepEqual(formatLineRange(result, 4, 0, result.length - 1).lines, result);
+    const withBlockComment = ['wire a /* 保留内联注释 */;'];
+    assert.deepEqual(formatLineRange(withBlockComment, 4, 0, 0).lines, withBlockComment);
+    const escaped = ['    .DATA(\\signal//name ), // 标识符'];
+    const escapedResult = formatLineRange(escaped, 4, 0, 0).lines;
+    assert.equal(parseLine(escapedResult[0], 4).conn, '\\signal//name');
+    assert.ok(escapedResult[0].endsWith('// 标识符'));
+});
+
 test('数组声明区分 packed/unpacked 维度与初值，支持多维及维度中的索引', () => {
     const source = [
         "reg [P_PPC*24-1:0] r_rgb_dly_array [0:20] = '{default:'0}; // delay",
@@ -355,7 +399,7 @@ test('VS Code 智能体接口默认只检查，显式 write 才写入', t => {
 test('manifest 保留命令和快捷键，并贡献层次树及提示设置', () => {
     const root = path.resolve(__dirname, '..');
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-    assert.equal(manifest.version, '2.1.15');
+    assert.match(manifest.version, /^\d+\.\d+\.\d+(?:-[\w.-]+)?$/);
     assert.ok(manifest.activationEvents.includes('onCommand:otter-fpga-toolkit.formatFile'));
     assert.deepEqual(
         manifest.contributes.commands.map(item => item.command),

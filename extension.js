@@ -284,7 +284,7 @@ function takeDimensions(text){
 }
 function parseDeclBody(body){
     if(!body)return null;
-    let rest=body.replace(/\t/g,' ').replace(/^\s+/,'').replace(/\s+$/,'');
+    let rest=body.trim();
     const km=rest.match(/^(input|output|inout|wire|reg|parameter|localparam|integer|genvar|logic|bit|int|tri|wand|wor)\b/);
     if(!km)return null;
     const base=km[1];
@@ -341,16 +341,40 @@ function expressionContinues(expression){
     return /(?:&&|\|\||<<<?|>>>?|==?|!=?|<=?|>=?|[+\-*\/%&|^~?:])\s*$/.test(expression);
 }
 
+// 只拆分字符串/转义标识符之外的行注释。混合块注释和跨行字符串保留原行。
+function splitFormatLine(line){
+    let inString=false,escaped=false,inIdentifier=false;
+    for(let i=0;i<line.length;i++){
+        const ch=line[i];
+        if(inString){
+            if(escaped)escaped=false;
+            else if(ch==='\\')escaped=true;
+            else if(ch==='"')inString=false;
+            continue;
+        }
+        if(inIdentifier){
+            if(/\s/.test(ch))inIdentifier=false;
+            continue;
+        }
+        if(ch==='"'){inString=true;continue;}
+        if(ch==='\\'){inIdentifier=true;continue;}
+        if(ch==='/'&&line[i+1]==='*')return null;
+        if(ch==='/'&&line[i+1]==='/')return {code:line.slice(0,i),comment:line.slice(i)};
+    }
+    return inString?null:{code:line,comment:''};
+}
+
 function parseLine(line, tab){
     if(!line)return null;
     tab=tab||4;
     const rawInd=line.match(/^(\s*)/)[1];
     const ind=rawInd.replace(/\t/g,' '.repeat(tab));
-    let rawBody=line.replace(/^\s*/,'').replace(/\s*\/\/.*$/,'').replace(/\s+$/,'').replace(/\t/g,' ');
+    const parts=splitFormatLine(line);
+    if(!parts)return null;
+    const rawBody=parts.code.trim();
     let body=rawBody;
     if(!body)return null;
 
-    body=body.replace(/\t/g,' ').replace(/ {2,}/g,' ').replace(/\s+;/g,';').replace(/\s+,/g,',');
     if(/^(assign|always|if|else|case|endcase|begin|end|function|endfunction|task|endtask|generate|endgenerate|endmodule|module|initial|forever|while|for|@|#)\b/.test(body))return null;
     if(/^\w+\s+#\s*\($/.test(body)||/^\).+\s*\($/.test(body)||/^\);?\s*$/.test(body))return null;
 
@@ -377,8 +401,10 @@ function parseLine(line, tab){
 }
 
 function doFmt(entry, cols, orig){
-    const cmt=orig.match(/(\/\/.*$)/);const cmPort=cmt?cmt[1].replace(/^\/\/(?!\s)/,'// '):'';const cmSig=cmPort;
-    let body=orig.replace(/^\s*/,'').replace(/\s*\/\/.*$/,'').replace(/\s+$/,'');
+    const parts=splitFormatLine(orig);
+    if(!parts)return orig;
+    const cmPort=parts.comment.replace(/^\/\/(?!\s)/,'// ');const cmSig=cmPort;
+    let body=parts.code.trim();
     if(!body||/^(assign|always|if|else|case|endcase|begin|end|function|endfunction|task|endtask|generate|endgenerate|endmodule|module|initial|forever|while|for|@|#)\b/.test(body))return orig;
     if(/^\w+\s+#\s*\($/.test(body)||/^\).+\s*\($/.test(body)||/^\);?\s*$/.test(body))return orig;
 
@@ -409,14 +435,13 @@ function doFmt(entry, cols, orig){
     if(entry.cl&&entry.rr)width='['+entry.cl+' '.repeat(Math.max(0,cp-entry.cl.length))+':'+entry.rr+']';
     else if(entry.width)width=entry.width;
     let r=entry.ind+entry.type;
-    r+=' '.repeat(Math.max(1,bc-r.length));
-    if(width)r+=width;
+    if(width){r+=' '.repeat(Math.max(1,bc-r.length));r+=width;}
     r+=' '.repeat(Math.max(1,nc-r.length));
     r+=entry.name;
     if(entry.unpacked)r+=' '+entry.unpacked;
-    if(hasEq){r+=' '.repeat(Math.max(1,ec-r.length));r+='=';if(eq){r+=' '.repeat(Math.max(1,vc-r.length));r+=eq;}if(tail){r+=' '.repeat(Math.max(0,cc-r.length));r+=' '+tail;}else if(!entry.continues){r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}}
-    else if(rest||tail){r+=' '.repeat(Math.max(1,cc-r.length));r+=rest+(tail?' '+tail:'');}
-    else{r+=' '.repeat(Math.max(1,cc-r.length));r+='  ';}
+    if(hasEq){r+=' '.repeat(Math.max(1,ec-r.length));r+='=';if(eq){r+=' '.repeat(Math.max(1,vc-r.length));r+=eq;}if(tail){r+=' '.repeat(Math.max(0,cc-r.length));r+=' '+tail;}else if(!entry.continues){r+=' '.repeat(Math.max(0,cc-r.length));r+='  ';}}
+    else if(rest||tail){r+=' '.repeat(Math.max(0,cc-r.length));r+=rest+(tail?' '+tail:'');}
+    else{r+=' '.repeat(Math.max(0,cc-r.length));r+='  ';}
     return (r+cmSig).trimEnd();
 }
 
@@ -436,10 +461,10 @@ function computeDeclarationColumns(entries,tab){
         const width=p.cl?'['+p.cl+' '.repeat(Math.max(0,cp-p.cl.length))+':'+p.rr+']':p.width;
         mb=Math.max(mb,Math.min(32,(width||'').length));
     }
-    const nc=padToTab(bc+mb+1,tab);
+    const nc=mb?padToTab(bc+mb+1,tab):bc;
     const ec=padToTab(nc+mn+1,tab);
     const vc=padToTab(ec+(he?1:0),tab);
-    const cc=padToTab(vc+me+1,tab)-1;
+    const cc=he?padToTab(vc+me+1,tab)-1:ec-1;
     return {bc,cp,nc,ec,vc,cc};
 }
 
