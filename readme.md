@@ -31,8 +31,8 @@
 cd otter-fpga-toolkit
 # 先运行内置检查
 npm test
-# 按 F5 启动调试模式，或把测试 VSIX 输出到仓库外
-npx.cmd -y @vscode/vsce package --out <temporary-test.vsix>
+# 按 F5 启动调试模式，或把测试 VSIX 输出到仓库根目录
+npx.cmd -y @vscode/vsce package --out otter-fpga-toolkit-<version>-test-<commit>.vsix
 ```
 
 ## 使用说明

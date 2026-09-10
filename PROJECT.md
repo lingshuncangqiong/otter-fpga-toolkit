@@ -185,7 +185,7 @@ activate()
 - VS Code Marketplace 暂不走自动 `vsce publish`：用户创建 Azure DevOps organization 会卡银行卡/订阅；采用手动上传 VSIX
 - Marketplace 手动上传页面：`https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang`
 - 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.15.vsix`
-- 发布后仓库根目录只保留当前最终 VSIX；测试包输出到仓库外的临时路径
+- 发布后仓库根目录只保留当前最终 VSIX；测试期间的 VSIX 统一放仓库根目录，以 -test-<commit> 后缀区分
 - 旧目录中的迁移备份与凭据继续留在仓库外，不作为当前开发入口
 
 ---
@@ -206,8 +206,8 @@ activate()
 # 1. 在仓库根目录开发并执行内置检查
 npm run check
 
-# 2. 需要用户安装验证时，输出到仓库外的临时测试包，避免覆盖当前发布包
-npx.cmd -y @vscode/vsce package --out <temporary-test.vsix>
+# 2. 需要用户安装验证时，输出到仓库根目录的测试包，使用独立文件名避免覆盖当前发布包
+npx.cmd -y @vscode/vsce package --out otter-fpga-toolkit-<version>-test-<commit>.vsix
 
 # 3. 用户确认并授权发布后，更新 package.json 版本并生成最终发布包
 npx.cmd -y @vscode/vsce package
