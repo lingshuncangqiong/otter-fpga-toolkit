@@ -11,7 +11,7 @@
 | **名称** | Otter FPGA Toolkit (水獭FPGA工具集) |
 | **扩展名** | `otter-fpga-toolkit` |
 | **Publisher** | `Otter-xiaoxiaoxuwang` |
-| **版本** | `2.1.15` |
+| **版本** | `2.1.16` |
 | **GitHub** | `https://github.com/lingshuncangqiong/otter-fpga-toolkit` |
 | **VSCode 引擎** | `^1.75.0` |
 | **许可** | MIT |
@@ -51,7 +51,7 @@ Otter-FPGA-Toolkit/
 │   ├── rtl-parser.test.js      ← ANSI/非 ANSI module、实例和 grammar 回归
 │   ├── vendor-metadata.test.js ← XCI/BD 端口方向与 Vivado 原语定位回归
 │   └── workspace-features.test.js ← Inlay/F12/层次树 provider 回归
-└── otter-fpga-toolkit-2.1.15.vsix  ← 当前本地发布包，Git 忽略
+└── otter-fpga-toolkit-2.1.16.vsix  ← 当前本地发布包，Git 忽略
 ```
 
 > **唯一入口**：自 2026-08-21 起，本仓库根目录同时承担开发、测试、GitHub 推送和 VSIX 发布，不再维护 `2-dev` / `1-release` 双副本。
@@ -176,15 +176,15 @@ activate()
 
 ## 当前发布状态 / 接手重点
 
-- 当前最新版本：`2.1.15`
-- 当前 GitHub main 发布提交：以 `git log` 中最新的 `v2.1.15` 提交为准
+- 当前最新版本：`2.1.16`
+- 当前 GitHub main 发布提交：以 `git log` 中最新的 `v2.1.16` 提交为准
 - 本仓库以 `main` 跟踪 `origin/main`；开始修改前检查 `git status --short --branch` 和当前 diff
 - `origin` 必须保持 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 - GitHub SSH key 名称：`Codex Windows`
 - GitHub 发布已经可以走 SSH，不再依赖 HTTPS token / PAT URL
 - VS Code Marketplace 暂不走自动 `vsce publish`：用户创建 Azure DevOps organization 会卡银行卡/订阅；采用手动上传 VSIX
 - Marketplace 手动上传页面：`https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang`
-- 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.15.vsix`
+- 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.16.vsix`
 - 发布后仓库根目录只保留当前最终 VSIX；测试期间的 VSIX 统一放仓库根目录，以 -test-<commit> 后缀区分
 - 旧目录中的迁移备份与凭据继续留在仓库外，不作为当前开发入口
 
@@ -271,6 +271,13 @@ git push origin main
 - 验证：`npm.cmd run check` 40/40 PASS；真实 RTL 只读 `--check --json` 只报告第 31 行需格式化且 SHA256 保持不变，内存模拟后 `P_FILL_DATA` 注释从第 126 列移到第 153 列，module 参数/端口区注释列统一为 153，`P_ALIGNED_PROFILE` 续行仍分别位于 value 列及 value+1 列；仓库外候选 VSIX 共 17 个条目，版本仍为 `2.1.15`，包内已含程序化命令激活事件，六个关键源文件（包含两份 grammar）哈希均与工作树一致，无测试、凭据或内部指令文件入包。
 
 ---
+
+## v2.1.16 改动记录
+
+- 用户确认测试包并授权发布，版本升级为 `2.1.16`；Marketplace 由用户手动上传。
+- 声明和例化按局部分组计算列宽，数组声明支持多组 packed/unpacked 维度与初始化表达式；限制超长字段对公共列宽的影响，减少多余空格。编辑器与 CLI 共用实现。
+- 自动 lint 对 `.sv/.svh` 优先使用 xvlog，显式选择工具仍优先；诊断标注检查器来源。
+- 验证：48 项自动测试 PASS；用户已确认测试包。Icarus 数组默认初始化误报已用最小示例复现，同例 xvlog -sv PASS；不代表整个用户工程通过验证。
 
 ## v2.1.15 改动记录
 
@@ -537,5 +544,5 @@ git push origin main
 11. **GitHub** — repo: `lingshuncangqiong/otter-fpga-toolkit`，`origin` 是 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 12. **activationEvents 警告** — VSCode 提示可删除，但 `vsce` 打包仍需保留，忽略即可
 13. **凭据** — GitHub 推送只使用现有 SSH 认证；不得使用旧 PAT 或把凭据写入 remote URL
-14. **当前发布包** — 仓库根目录保留 `otter-fpga-toolkit-2.1.15.vsix`
-15. **清理状态** — 当前仓库采用单一真源；测试 VSIX 放在仓库外，根目录只保留最终发布包
+14. **当前发布包** — 仓库根目录保留 `otter-fpga-toolkit-2.1.16.vsix`
+15. **清理状态** — 当前仓库采用单一真源；测试 VSIX 在验证期间统一放根目录，正式打包完成后只保留当前发布包
