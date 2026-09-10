@@ -24,7 +24,7 @@ function usage() {
         '  node format-cli.js --check [--json] [--tab-size N] [--start-line N --end-line N] <file>',
         '  node format-cli.js --write [--json] [--tab-size N] [--start-line N --end-line N] <file>',
         '',
-        'Line numbers are 1-based and inclusive. Alignment uses the complete local declaration group, even for a selected range.'
+        'Line numbers are 1-based and inclusive. Alignment uses the complete module parameter/port region or local declaration group, even for a selected range.'
     ].join('\n');
 }
 

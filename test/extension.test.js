@@ -308,6 +308,53 @@ test('长参数不撑宽端口和寄存器，完整模块格式化保持幂等',
     assert.equal(result.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
 });
 
+test('module接口跨空行和分组标题对齐，参数、内部声明和其它module互不撑宽', () => {
+    const source = [
+        'module demo #(',
+        '    parameter integer P_WIDTH = 32, // width',
+        '',
+        '    // 参数说明',
+        '    parameter integer P_MODE = 1 // mode',
+        ')(',
+        '    input i_clk, // clock',
+        '    input i_rst, // reset',
+        '',
+        '    //---------------- 请求 ----------------',
+        '        input [P_WIDTH-1:0] i_req_data, // data',
+        '    output o_req_ready, // ready',
+        '',
+        '    // 响应',
+        '    output [P_WIDTH-1:0] o_response_data, // response',
+        '    input i_response_ready // ready',
+        ');',
+        'localparam integer P_INTERNAL = A_VERY_LONG_INTERNAL_EXPRESSION;',
+        'endmodule',
+        'module other (',
+        '    input i_clk,',
+        '    output o_short',
+        ');',
+        'endmodule'
+    ];
+    const result = formatLineRange(source, 4, 0, source.length - 1).lines;
+    const portLines = [6, 7, 10, 11, 14, 15];
+    const names = portLines.map(i => result[i].indexOf(parseLine(source[i], 4).name));
+    assert.equal(new Set(names).size, 1);
+    assert.equal(new Set(portLines.map(i => result[i].search(/\S/))).size, 1);
+    assert.equal(new Set(portLines.map(i => result[i].indexOf('//'))).size, 1);
+    assert.equal(result[1].indexOf('='), result[4].indexOf('='));
+    assert.equal(result[1].indexOf('//'), result[4].indexOf('//'));
+    assert.ok(result[20].indexOf('i_clk') < result[6].indexOf('i_clk'));
+    const longerParameter = source.map((line, i) => i === 4
+        ? '    parameter integer P_A_VERY_LONG_PARAMETER_NAME = REALLY_LONG_VALUE + ANOTHER_VALUE'
+        : line);
+    assert.deepEqual(formatLineRange(longerParameter, 4, 0, source.length - 1).lines.slice(5), result.slice(5));
+    const selected = formatLineRange(source, 4, 6, 7).lines;
+    assert.deepEqual(selected.slice(6, 8), result.slice(6, 8));
+    assert.deepEqual(selected.slice(8), source.slice(8));
+    assert.deepEqual(formatLineRange(result, 4, 0, result.length - 1).lines, result);
+    assert.equal(result.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
+});
+
 test('空行、分区与缩进隔离声明组，普通注释不破坏组内对齐', () => {
     const source = [
         'reg short_name;',

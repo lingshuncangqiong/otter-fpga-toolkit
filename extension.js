@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const {registerWorkspaceFeatures} = require('./workspace-features');
-const {maskNonCode} = require('./rtl-parser');
+const {maskNonCode,parseRtlDocument} = require('./rtl-parser');
 
 function padToTab(c,t){return Math.ceil(c/t)*t;}
 function normalizeTabSize(value){const n=Number(value);if(!Number.isFinite(n))return 4;return Math.min(16,Math.max(1,Math.trunc(n)));}
@@ -473,7 +473,12 @@ function formatLineRange(lines,tabValue,startLine,endLine){
     const first=Math.max(0,Number.isFinite(startLine)?Math.trunc(startLine):0);
     const last=Math.min(lines.length-1,Number.isFinite(endLine)?Math.trunc(endLine):lines.length-1);
     // 读取整份文档识别分组，但列宽只由所属组决定，写入仍限于选区。
-    const codeLines=maskNonCode(lines.join('\n')).split('\n');
+    const text=lines.join('\n');
+    const codeLines=maskNonCode(text).split('\n');
+    const headers=parseRtlDocument(text).modules;
+    const lineOffsets=[];
+    let offset=0;
+    for(const line of lines){lineOffsets.push(offset);offset+=line.length+1;}
     const all=[],byLine=new Map();
     for(let i=0;i<lines.length;i++){
         if(!codeLines[i].trim())continue;
@@ -503,10 +508,28 @@ function formatLineRange(lines,tabValue,startLine,endLine){
 
     const kindOf=p=>p.tag?'instance':/^(parameter|localparam)\b/.test(p.type)?'parameter':
         /^(input|output|inout)\b/.test(p.type)?'port':p.type==='genvar'?'genvar':'signal';
-    const groups=[];
+    const groups=[],headerGroups=new Map();
+    let headerIndex=0;
     let group,previous;
     for(const entry of all){
         const kind=kindOf(entry);
+        const position=lineOffsets[entry.i];
+        while(headerIndex<headers.length&&headers[headerIndex].headerEnd<position)headerIndex++;
+        const header=headers[headerIndex];
+        // 同一module头内，参数和端口分别跨空行/注释统一列宽；不延伸到模块体。
+        if(header&&position>header.nameOffset&&position<=header.headerEnd&&
+            (kind==='parameter'||kind==='port')){
+            const key=header.nameOffset+':'+kind;
+            let headerGroup=headerGroups.get(key);
+            if(!headerGroup){
+                headerGroup={kind,indent:entry.ind.length,indentText:entry.ind,entries:[]};
+                headerGroups.set(key,headerGroup);groups.push(headerGroup);
+            }
+            entry.ind=headerGroup.indentText;
+            headerGroup.entries.push(entry);
+            group=undefined;previous=undefined;
+            continue;
+        }
         let boundary=!previous||kind!==group.kind||entry.ind.length!==group.indent;
         if(!boundary){
             for(let line=(previous.continuationEnd??previous.i)+1;line<entry.i;line++){
