@@ -11,7 +11,7 @@
 | **名称** | Otter FPGA Toolkit (水獭FPGA工具集) |
 | **扩展名** | `otter-fpga-toolkit` |
 | **Publisher** | `Otter-xiaoxiaoxuwang` |
-| **版本** | `2.1.16` |
+| **版本** | `2.1.17` |
 | **GitHub** | `https://github.com/lingshuncangqiong/otter-fpga-toolkit` |
 | **VSCode 引擎** | `^1.75.0` |
 | **许可** | MIT |
@@ -51,7 +51,7 @@ Otter-FPGA-Toolkit/
 │   ├── rtl-parser.test.js      ← ANSI/非 ANSI module、实例和 grammar 回归
 │   ├── vendor-metadata.test.js ← XCI/BD 端口方向与 Vivado 原语定位回归
 │   └── workspace-features.test.js ← Inlay/F12/层次树 provider 回归
-└── otter-fpga-toolkit-2.1.16.vsix  ← 当前本地发布包，Git 忽略
+└── otter-fpga-toolkit-2.1.17.vsix  ← 当前本地发布包，Git 忽略
 ```
 
 > **唯一入口**：自 2026-08-21 起，本仓库根目录同时承担开发、测试、GitHub 推送和 VSIX 发布，不再维护 `2-dev` / `1-release` 双副本。
@@ -176,15 +176,15 @@ activate()
 
 ## 当前发布状态 / 接手重点
 
-- 当前最新版本：`2.1.16`
-- 当前 GitHub main 发布提交：以 `git log` 中最新的 `v2.1.16` 提交为准
+- 当前版本：`2.1.17`；正式 VSIX 已准备，Marketplace 按流程待用户手动上传
+- 当前 GitHub main 发布提交：以 `git log` 中最新的 `v2.1.17` 提交为准
 - 本仓库以 `main` 跟踪 `origin/main`；开始修改前检查 `git status --short --branch` 和当前 diff
 - `origin` 必须保持 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 - GitHub SSH key 名称：`Codex Windows`
 - GitHub 发布已经可以走 SSH，不再依赖 HTTPS token / PAT URL
 - VS Code Marketplace 暂不走自动 `vsce publish`：用户创建 Azure DevOps organization 会卡银行卡/订阅；采用手动上传 VSIX
 - Marketplace 手动上传页面：`https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang`
-- 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.16.vsix`
+- 当前手动上传文件：仓库根目录的 `otter-fpga-toolkit-2.1.17.vsix`
 - 发布后仓库根目录只保留当前最终 VSIX；测试期间的 VSIX 统一放仓库根目录，以 -test-<commit> 后缀区分
 - 旧目录中的迁移备份与凭据继续留在仓库外，不作为当前开发入口
 
@@ -254,7 +254,7 @@ git push origin main
 
 ---
 
-## 当前开发改动（未发布）
+## 历史开发记录（2.1.15 期间）
 
 - 对齐计算改为局部声明/例化分组：长参数、其它模块和深层generate不再拉宽无关区域；选区格式化仍读取完整所属组，多行声明续行保持相对缩进，纯注释中的伪声明不参与。CLI与Ctrl+L共用实现，模块参数末行不再生成尾随空格。
 - 版本号保持 `2.1.15`，正式 VSIX 不覆盖。
@@ -271,6 +271,14 @@ git push origin main
 - 验证：`npm.cmd run check` 40/40 PASS；真实 RTL 只读 `--check --json` 只报告第 31 行需格式化且 SHA256 保持不变，内存模拟后 `P_FILL_DATA` 注释从第 126 列移到第 153 列，module 参数/端口区注释列统一为 153，`P_ALIGNED_PROFILE` 续行仍分别位于 value 列及 value+1 列；仓库外候选 VSIX 共 17 个条目，版本仍为 `2.1.15`，包内已含程序化命令激活事件，六个关键源文件（包含两份 grammar）哈希均与工作树一致，无测试、凭据或内部指令文件入包。
 
 ---
+
+## v2.1.17 发布记录
+
+- 用户确认本轮效果并授权按流程发布；版本从 2.1.16 更新到 2.1.17，包含 8edc154、bae4d0a 的排版修复。
+- 同一 module 参数表/端口表分别跨空行及职责注释对齐，内部声明保持局部分组；缺失字段不预留空列，修正分隔符及末行注释偏移。
+- 保留字符串中的注释标记、连续空格与转义内容，避免格式化改变参数/连接语义。
+- 复用已通过的 51 项测试和 JS 语法检查；发布仅改版本与文档，另核对 manifest 与正式 VSIX 内容。编辑器安装及 Marketplace 上线不由打包或 Git push 代替证明。
+- Marketplace 由用户手动上传正式 VSIX；不读取旧凭据或执行自动 publish。
 
 ## v2.1.16 改动记录
 
@@ -544,10 +552,10 @@ git push origin main
 11. **GitHub** — repo: `lingshuncangqiong/otter-fpga-toolkit`，`origin` 是 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 12. **activationEvents 警告** — VSCode 提示可删除，但 `vsce` 打包仍需保留，忽略即可
 13. **凭据** — GitHub 推送只使用现有 SSH 认证；不得使用旧 PAT 或把凭据写入 remote URL
-14. **当前发布包** — 仓库根目录保留 `otter-fpga-toolkit-2.1.16.vsix`
+14. **当前发布包** — 仓库根目录保留 `otter-fpga-toolkit-2.1.17.vsix`
 15. **清理状态** — 当前仓库采用单一真源；测试 VSIX 在验证期间统一放根目录，正式打包完成后只保留当前发布包
 
-## 2026-09-10 排版修复（测试，未发布）
+## 2026-09-10 排版修复（已纳入 v2.1.17）
 
 - 原仓库基线 af5a76e：标量声明仍为缺失位宽/初始化保留空列；尾部边界长度下，最长无初值声明的分隔符还会多偏一列。改为仅保留当前组实际存在的字段，统一分隔符列，继续按局部分组计算。
 - 修复字符串内的 `//` 被误作注释、例化字符串连续空格/制表符被改写的问题。识别字符串、转义引号和转义标识符后再分离行注释；混合块注释及跨行字符串等未支持行保持原样。
@@ -555,7 +563,7 @@ git push origin main
 - PASS：JavaScript 语法与全部 50 项测试；真实 Test/04 两个 RTL 的副本经过修复后只改变空白，二次检查无需修改。没有重跑硬件验证。
 - 本次检查发现 VS Code/Cursor 的已安装目录均标为 2.1.15，但源码不同：前者已有局部分组，后者仍全文件计算列宽。已安装目录未改写，测试包用于统一验证；保持版本 2.1.16，未升级版本、安装或发布。
 
-## 2026-09-10 接口区域对齐（测试，未发布）
+## 2026-09-10 接口区域对齐（已纳入 v2.1.17）
 
 - 同一 ANSI module 头内的参数表与端口表分别作为完整列宽区域；空行、职责注释不再让端口参差，时钟/复位与数据端口共享名称及注释列。参数与端口独立计算，模块体和不同 module 保持局部边界。
 - 复用 RTL parser 的模块头范围，不靠空行猜接口结束；选区仍只写入选中行，列宽参考完整区域，长字段上限与字符串保护沿用。
