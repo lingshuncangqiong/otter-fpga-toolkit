@@ -308,6 +308,33 @@ function compactDimensions(text){
         return '';
     });
 }
+
+function singlePackedRange(width){
+    if(!width.startsWith('[')||!width.endsWith(']')||/["\\`]/.test(width))return null;
+    let square=0,round=0,curly=0,ternary=0,colon=-1;
+    for(let i=0;i<width.length;i++){
+        const ch=width[i];
+        if(ch==='[')square++;
+        else if(ch===']'){
+            square--;
+            if(square===0&&i!==width.length-1)return null; // 多维保持紧凑，不当成一组范围。
+        }else if(ch==='(')round++;
+        else if(ch===')')round--;
+        else if(ch==='{')curly++;
+        else if(ch==='}')curly--;
+        else if(square===1&&round===0&&curly===0){
+            if(ch==='?')ternary++;
+            else if(ch===':'){
+                if(width[i+1]===':'){i++;continue;} // package::name
+                if(ternary){ternary--;continue;}
+                if(colon!==-1||/[+\-]/.test(width[i-1]))return null;
+                colon=i;
+            }
+        }
+    }
+    return colon>1&&colon<width.length-2&&ternary===0
+        ?{cl:width.slice(1,colon),rr:width.slice(colon+1,-1)}:null;
+}
 function parseDeclBody(body){
     if(!body)return null;
     let rest=body.trim();
@@ -423,7 +450,8 @@ function parseLine(line, tab){
     const tail=rest.match(/[,;]\s*$/)?rest.match(/[,;]\s*$/)[0].trim():'';
     rest=rest.replace(/[,;]\s*$/,'').trim();
     let eq='';const em=rest.match(/^\s*=\s*(.*)$/);const hasEq=!!em;if(em)eq=em[1].trim();
-    return {ind,type:d.type,name:d.name,unpacked:compactDimensions(unpacked.dimensions),hasEq,eq,tail,continues:hasEq&&!tail&&(!eq||expressionContinues(eq)),rest:hasEq?'':rest,width:compactDimensions(d.width),cl:d.cl,rr:d.rr};
+    const width=compactDimensions(d.width),range=singlePackedRange(width);
+    return {ind,type:d.type,name:d.name,unpacked:compactDimensions(unpacked.dimensions),hasEq,eq,tail,continues:hasEq&&!tail&&(!eq||expressionContinues(eq)),rest:hasEq?'':rest,width,cl:range?.cl||'',rr:range?.rr||''};
 }
 
 function doFmt(entry, cols, orig){
@@ -474,15 +502,15 @@ function doFmt(entry, cols, orig){
 function computeDeclarationColumns(entries,tab,fullWidth=false){
     // 端口按实际长度对齐，保持整行；其它局部声明保留防止过度撑宽的填充上限。
     const span=(length,limit)=>fullWidth?length:Math.min(length,limit);
-    let mt=0,mn=0,me=0,he=0;
+    let mt=0,mn=0,me=0,he=0,cp=0;
     const indent=entries[0].ind.length;
     for(const p of entries){
         mt=Math.max(mt,p.type.length);
         mn=Math.max(mn,span(p.name.length+(p.unpacked?1+p.unpacked.length:0),40));
         if(p.hasEq){he=1;me=Math.max(me,span(p.eq.length,24));}
+        cp=Math.max(cp,span((p.cl||'').length,29));
     }
     const bc=padToTab(indent+mt+1,tab);
-    const cp=0;
     let mb=0;
     for(const p of entries){
         const width=p.cl?'['+p.cl+' '.repeat(Math.max(0,cp-p.cl.length))+':'+p.rr+']':p.width;

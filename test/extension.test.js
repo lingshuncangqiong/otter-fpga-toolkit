@@ -299,7 +299,7 @@ test('长表达式端口按实际列宽对齐，超过旧上限仍保留单行',
     const ports = [1, 2, 3, 6, 7, 8];
     assert.equal(new Set(ports.map(i => result[i].indexOf(parseLine(result[i], 4).name))).size, 1);
     assert.equal(new Set(ports.map(i => result[i].indexOf('//'))).size, 1);
-    assert.match(result[2], /\[\$clog2\(P_MAX_SOURCE_WIDTH\+1\)-1:0\]/);
+    assert.match(result[2], /\[\$clog2\(P_MAX_SOURCE_WIDTH\+1\)-1\s*:0\]/);
     assert.match(result[6], /\[\(\(P_PPC\*P_VI_DW\*P_COMP_NUM\+7\)\/8\)\*8-1:0\]/);
     assert.equal(result.length, lines.length);
     assert.deepEqual(format(result), result);
@@ -307,6 +307,43 @@ test('长表达式端口按实际列宽对齐，超过旧上限仍保留单行',
     assert.deepEqual(partial.slice(2, 4), result.slice(2, 4));
     assert.deepEqual(partial.slice(4), lines.slice(4));
     assert.equal(result.join('').replace(/\s/g, ''), lines.join('').replace(/\s/g, ''));
+});
+
+test('单维端口的范围冒号对齐，表达式靠左，名称与注释仍同列', () => {
+    const lines = [
+        'module ports (',
+        '    input [7 : 0] i_byte, // byte',
+        '    input [$clog2(P_WIDTH + 1) - 1 : 0] i_count, // count',
+        '    output [P_LONG_DATA_DW - 1 : 0] o_data, // data',
+        '    input [15:8] i_high, // nonzero bound',
+        '    input i_valid // valid',
+        ');'
+    ];
+    const fmt = a => formatLineRange(a, 4, 0, a.length - 1).lines;
+    const result = fmt(lines);
+    assert.equal(new Set(result.slice(1, 5).map(l => l.indexOf(':'))).size, 1);
+    assert.match(result[1], /\[7\s+:0\]/);
+    assert.match(result[4], /\[15\s+:8\]/);
+    assert.equal(new Set(result.slice(1, 6).map(l => l.indexOf(parseLine(l, 4).name))).size, 1);
+    assert.equal(new Set(result.slice(1, 6).map(l => l.indexOf('//'))).size, 1);
+    assert.deepEqual(fmt(result), result);
+    assert.equal(formatLineRange(lines, 4, 1, 1).lines[1], result[1]);
+    assert.equal(result.join('').replace(/\s/g, ''), lines.join('').replace(/\s/g, ''));
+});
+
+test('范围解析区分三目、嵌套索引、作用域符号与多维数组', () => {
+    for (const [width, left, right] of [
+        ['[P_SEL?P_A:P_B:0]', 'P_SEL?P_A:P_B', '0'],
+        ['[(P_SEL?P_A:P_B)-1:0]', '(P_SEL?P_A:P_B)-1', '0'],
+        ['[pkg::P_WIDTH-1:0]', 'pkg::P_WIDTH-1', '0'],
+        ['[P_WIDTHS[0]-1:P_SEL?1:0]', 'P_WIDTHS[0]-1', 'P_SEL?1:0'],
+        ['[3:0][7:0]', '', ''],
+        ['[P_BASE+:P_WIDTH]', '', ''],
+    ]) {
+        const parsed = parseLine(`input ${width} i_data,`, 4);
+        assert.equal(parsed.cl, left);
+        assert.equal(parsed.rr, right);
+    }
 });
 
 test('多维数组压缩空白，但不合并单词、操作符或改写宏和字符串', () => {
