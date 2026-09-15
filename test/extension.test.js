@@ -281,6 +281,52 @@ test('长维度、名称和初值不会无上限撑宽同组短声明', () => {
     assert.equal(formatted.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
 });
 
+test('长表达式端口按实际列宽对齐，超过旧上限仍保留单行', () => {
+    const lines = [
+        'module scaler (',
+        '    input i_clk, // clock',
+        '    input [$clog2(P_MAX_SOURCE_WIDTH + 1) - 1 : 0] i_cfg_source_width, // width',
+        '    input [$clog2(P_MAX_SOURCE_HEIGHT + 1) - 1 : 0] i_cfg_source_height, // height',
+        '',
+        '    // packed pixel data',
+        '    input [((P_PPC * P_VI_DW * P_COMP_NUM + 7) / 8) * 8 - 1 : 0] s_axis_tdata, // data',
+        `    output [P_DW - 1 : 0] o_${'long_name_'.repeat(6)}, // long name`,
+        '    output o_valid // valid',
+        ');'
+    ];
+    const format = source => formatLineRange(source, 4, 0, source.length - 1).lines;
+    const result = format(lines);
+    const ports = [1, 2, 3, 6, 7, 8];
+    assert.equal(new Set(ports.map(i => result[i].indexOf(parseLine(result[i], 4).name))).size, 1);
+    assert.equal(new Set(ports.map(i => result[i].indexOf('//'))).size, 1);
+    assert.match(result[2], /\[\$clog2\(P_MAX_SOURCE_WIDTH\+1\)-1:0\]/);
+    assert.match(result[6], /\[\(\(P_PPC\*P_VI_DW\*P_COMP_NUM\+7\)\/8\)\*8-1:0\]/);
+    assert.equal(result.length, lines.length);
+    assert.deepEqual(format(result), result);
+    const partial = formatLineRange(lines, 4, 2, 3).lines;
+    assert.deepEqual(partial.slice(2, 4), result.slice(2, 4));
+    assert.deepEqual(partial.slice(4), lines.slice(4));
+    assert.equal(result.join('').replace(/\s/g, ''), lines.join('').replace(/\s/g, ''));
+});
+
+test('多维数组压缩空白，但不合并单词、操作符或改写宏和字符串', () => {
+    const line = "reg [ 1 : 0 ] [ P_WIDTHS[ 0 ] - 1 : 0 ] r_mem [ 0 : P_DEPTH - 1 ] = '{default:'0};";
+    const parsed = parseLine(line, 4);
+    assert.equal(parsed.width, '[1:0][P_WIDTHS[0]-1:0]');
+    assert.equal(parsed.unpacked, '[0:P_DEPTH-1]');
+    for (const [input, expected] of [
+        ['[P_DW + + P_PAD - 1 : 0]', '[P_DW+ +P_PAD-1:0]'],
+        ['[P_DW - - P_PAD - 1 : 0]', '[P_DW- -P_PAD-1:0]'],
+        ['[$bits( int unsigned ) - 1 : 0]', '[$bits(int unsigned)-1:0]'],
+        ['[P_DW > > 1 : 0]', '[P_DW> >1:0]'],
+        ['[ `WIDTH( a + b ) - 1 : 0 ]', '[ `WIDTH( a + b ) - 1 : 0 ]'],
+        ['[ $bits("a ]  b") - 1 : 0 ]', '[ $bits("a ]  b") - 1 : 0 ]'],
+        [String.raw`[ \width[0]  - 1 : 0 ]`, String.raw`[ \width[0]  - 1 : 0 ]`],
+    ]) {
+        assert.equal(parseLine(`logic ${input} r_value;`, 4).width, expected);
+    }
+});
+
 test('长参数不撑宽端口和寄存器，完整模块格式化保持幂等', () => {
     const source = [
         'module demo #(',

@@ -271,8 +271,21 @@ function isV(d){return ['verilog','systemverilog'].includes(d.languageId);}
 function takeDimensions(text){
     let rest=text.trimStart(),dimensions='';
     while(rest.startsWith('[')){
-        let depth=0,end=-1;
+        let depth=0,end=-1,inString=false,escaped=false,inIdentifier=false;
         for(let i=0;i<rest.length;i++){
+            const ch=rest[i];
+            if(inString){
+                if(escaped)escaped=false;
+                else if(ch==='\\')escaped=true;
+                else if(ch==='"')inString=false;
+                continue;
+            }
+            if(inIdentifier){
+                if(/\s/.test(ch))inIdentifier=false;
+                continue;
+            }
+            if(ch==='"'){inString=true;continue;}
+            if(ch==='\\'){inIdentifier=true;continue;}
             if(rest[i]==='[')depth++;
             else if(rest[i]===']'&&--depth===0){end=i+1;break;}
         }
@@ -281,6 +294,19 @@ function takeDimensions(text){
         rest=rest.slice(end).trimStart();
     }
     return {dimensions,rest};
+}
+
+function compactDimensions(text){
+    // 字符串、转义标识符和宏可能依赖原始空白，保留这些维度原文。
+    if(/["\\`]/.test(text))return text;
+    return text.replace(/\s+/g,(space,offset)=>{
+        const left=text[offset-1]||'',right=text[offset+space.length]||'';
+        // 不把独立单词、数字或操作符合成新 token（如 + + -> ++、/ * -> /*）。
+        if(/[\w$']/.test(left)&&/[\w$']/.test(right))return ' ';
+        if(/[+\-*/%&|^~!=<>?:.]/.test(left)&&/[+\-*/%&|^~!=<>?:.]/.test(right))return ' ';
+        if((/\d/.test(left)&&right==='.')||(left==='.'&&/\d/.test(right)))return ' ';
+        return '';
+    });
 }
 function parseDeclBody(body){
     if(!body)return null;
@@ -397,7 +423,7 @@ function parseLine(line, tab){
     const tail=rest.match(/[,;]\s*$/)?rest.match(/[,;]\s*$/)[0].trim():'';
     rest=rest.replace(/[,;]\s*$/,'').trim();
     let eq='';const em=rest.match(/^\s*=\s*(.*)$/);const hasEq=!!em;if(em)eq=em[1].trim();
-    return {ind,type:d.type,name:d.name,unpacked:unpacked.dimensions,hasEq,eq,tail,continues:hasEq&&!tail&&(!eq||expressionContinues(eq)),rest:hasEq?'':rest,width:d.width,cl:d.cl,rr:d.rr};
+    return {ind,type:d.type,name:d.name,unpacked:compactDimensions(unpacked.dimensions),hasEq,eq,tail,continues:hasEq&&!tail&&(!eq||expressionContinues(eq)),rest:hasEq?'':rest,width:compactDimensions(d.width),cl:d.cl,rr:d.rr};
 }
 
 function doFmt(entry, cols, orig){
@@ -445,21 +471,22 @@ function doFmt(entry, cols, orig){
     return (r+cmSig).trimEnd();
 }
 
-function computeDeclarationColumns(entries,tab){
-    // 长字段只影响本行，不让整组追随其长度。这里只限制对齐填充，不截断或拆行。
+function computeDeclarationColumns(entries,tab,fullWidth=false){
+    // 端口按实际长度对齐，保持整行；其它局部声明保留防止过度撑宽的填充上限。
+    const span=(length,limit)=>fullWidth?length:Math.min(length,limit);
     let mt=0,mn=0,me=0,he=0;
     const indent=entries[0].ind.length;
     for(const p of entries){
         mt=Math.max(mt,p.type.length);
-        mn=Math.max(mn,Math.min(40,p.name.length+(p.unpacked?1+p.unpacked.length:0)));
-        if(p.hasEq){he=1;me=Math.max(me,Math.min(24,p.eq.length));}
+        mn=Math.max(mn,span(p.name.length+(p.unpacked?1+p.unpacked.length:0),40));
+        if(p.hasEq){he=1;me=Math.max(me,span(p.eq.length,24));}
     }
     const bc=padToTab(indent+mt+1,tab);
     const cp=0;
     let mb=0;
     for(const p of entries){
         const width=p.cl?'['+p.cl+' '.repeat(Math.max(0,cp-p.cl.length))+':'+p.rr+']':p.width;
-        mb=Math.max(mb,Math.min(32,(width||'').length));
+        mb=Math.max(mb,span((width||'').length,32));
     }
     const nc=mb?padToTab(bc+mb+1,tab):bc;
     const ec=padToTab(nc+mn+1,tab);
@@ -547,7 +574,7 @@ function formatLineRange(lines,tabValue,startLine,endLine){
     for(const current of groups){
         const cols=current.kind==='instance'
             ?computeInstanceColumns(current.entries,tab).get(current.indent)
-            :computeDeclarationColumns(current.entries,tab);
+            :computeDeclarationColumns(current.entries,tab,current.kind==='port');
         for(const entry of current.entries){
             columnsByLine.set(entry.i,cols);
             const content=entry.continuationLines;
