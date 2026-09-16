@@ -486,7 +486,7 @@ test('显式 reg/wire 分区跨空行和注释统一列宽，保留分组与选�
         assert.equal(new Set(regs.map(i=>column(result[i]))).size, 1);
     }
     assert.equal(result[3].indexOf(':0]'), result[7].indexOf(':0]'));
-    assert.ok(result[13].indexOf('w_cmd_active') < result[10].indexOf('r_seq_run'));
+    assert.equal(result[13].indexOf('w_cmd_active'),result[10].indexOf('r_seq_run'));
     for(let i=0;i<source.length;i++)if(!parseLine(source[i],4))assert.equal(result[i],source[i]);
     assert.deepEqual(fmt(result),result);
     assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
@@ -574,6 +574,42 @@ test('超长初值保持等号对齐但不拉远其它行的分号，超长声�
     assert.equal(result[2].indexOf('//')-result[2].lastIndexOf('P_END'),7);
     assert.equal(result.length,source.length);
     assert.deepEqual(fmt(result),result);
+    assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
+});
+
+test('跨 parameter/reg/wire 共用声明头列，修饰符单独对齐，尾列仍按区计算', () => {
+    const source = [
+        'module demo (input i_clk);',
+        '/***************parameter*************/',
+        'localparam integer P_LIMIT = P_A + P_B + P_C + P_D; // limit',
+        "localparam signed [P_DW-1:0] P_MAX = '0; // max",
+        '/***************port******************/',
+        '/***************mechine***************/',
+        '/***************reg*******************/',
+        "reg signed [P_DATA_DW-1:0] r_data = '0; // data",
+        '',
+        "reg r_valid = 1'b0; // valid",
+        'genvar g_ch;',
+        '/***************wire******************/',
+        'wire [P_OTHER_DW-1:0] w_data; // wire',
+        'wire w_enable; // enable',
+        '/***************component*************/',
+        'endmodule'
+    ];
+    const fmt=lines=>formatLineRange(lines,4,0,lines.length-1).lines;
+    const result=fmt(source),decls=[2,3,7,9,12,13];
+    assert.equal(new Set(decls.map(i=>result[i].indexOf(parseLine(result[i],4).name))).size,1);
+    assert.equal(new Set([2,3,7,9].map(i=>result[i].indexOf('='))).size,1);
+    assert.equal(new Set([3,7,12].map(i=>result[i].indexOf('['))).size,1);
+    assert.equal(new Set([3,7,12].map(i=>result[i].indexOf(':0]'))).size,1);
+    assert.equal(result[2].indexOf('integer'),result[7].indexOf('signed'));
+    assert.ok(result[12].indexOf(';')<result[7].indexOf(';'));
+    const longer=source.map((l,i)=>i===2?'localparam integer P_LIMIT = P_A + P_B + P_C + P_D + P_E + P_F; // limit':l);
+    assert.deepEqual(fmt(longer).slice(4),result.slice(4));
+    assert.deepEqual(fmt(result),result);
+    const partial=formatLineRange(source,4,7,9).lines;
+    assert.deepEqual(partial.slice(7,10),result.slice(7,10));
+    assert.deepEqual(partial.slice(10),source.slice(10));
     assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
 });
 

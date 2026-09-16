@@ -489,6 +489,11 @@ function doFmt(entry, cols, orig){
     if(entry.cl&&entry.rr)width='['+entry.cl+' '.repeat(Math.max(0,cp-entry.cl.length))+':'+entry.rr+']';
     else if(entry.width)width=entry.width;
     let r=entry.ind+entry.type;
+    if(cols.qc!==undefined){
+        const [keyword,...qualifiers]=entry.type.split(/\s+/);
+        r=entry.ind+keyword;
+        if(qualifiers.length)r+=' '.repeat(Math.max(1,cols.qc-r.length))+qualifiers.join(' ');
+    }
     if(width){r+=' '.repeat(Math.max(1,bc-r.length));r+=width;}
     r+=' '.repeat(Math.max(1,nc-r.length));
     r+=entry.name;
@@ -504,20 +509,23 @@ function isLongDeclarationHead(entry){
         entry.name.length+(entry.unpacked?1+entry.unpacked.length:0)>64;
 }
 
-function computeDeclarationColumns(entries,tab,fullWidth=false){
+function computeDeclarationColumns(entries,tab,fullWidth=false,separateQualifiers=false){
     // 普通字段按实际长度对齐，不再把超过固定列宽的字段挤出队列。
     // 极长声明头独立排版；极长初值保留左侧对齐，但不参与公共分号列计算。
     let aligned=fullWidth?entries:entries.filter(p=>!isLongDeclarationHead(p));
     if(!aligned.length)aligned=entries;
-    let mt=0,mn=0,me=0,he=0,cp=0;
+    let mt=0,mn=0,me=0,he=0,cp=0,mk=0,mq=0;
     const indent=entries[0].ind.length;
     for(const p of aligned){
         mt=Math.max(mt,p.type.length);
+        const [keyword,...qualifiers]=p.type.split(/\s+/);
+        mk=Math.max(mk,keyword.length);mq=Math.max(mq,qualifiers.join(' ').length);
         mn=Math.max(mn,p.name.length+(p.unpacked?1+p.unpacked.length:0));
         if(p.hasEq){he=1;if(fullWidth||p.eq.length<=96)me=Math.max(me,p.eq.length);}
         cp=Math.max(cp,(p.cl||'').length);
     }
-    const bc=padToTab(indent+mt+1,tab);
+    const qc=separateQualifiers&&mq?padToTab(indent+mk+1,tab):undefined;
+    const bc=qc===undefined?padToTab(indent+mt+1,tab):padToTab(qc+mq+1,tab);
     let mb=0;
     for(const p of aligned){
         const width=p.cl?'['+p.cl+' '.repeat(Math.max(0,cp-p.cl.length))+':'+p.rr+']':p.width;
@@ -527,7 +535,7 @@ function computeDeclarationColumns(entries,tab,fullWidth=false){
     const ec=padToTab(nc+mn+1,tab);
     const vc=padToTab(ec+(he?1:0),tab);
     const cc=he?padToTab(vc+me+1,tab)-1:ec-1;
-    return {bc,cp,nc,ec,vc,cc};
+    return {bc,cp,nc,ec,vc,cc,qc,hasInitializers:!!he,maxValueWidth:me};
 }
 
 function formatLineRange(lines,tabValue,startLine,endLine){
@@ -573,24 +581,35 @@ function formatLineRange(lines,tabValue,startLine,endLine){
     // 显式 parameter/reg/wire 分区内，空行和说明注释只分隔语义，不重置字段列宽。
     // 一旦出现其它代码、预处理或缩进变化就结束区域，避免跨 generate/模块作用域。
     const sectionByLine=new Map();
-    let section;
+    let section,regionId,regionIndent;
     for(let i=0;i<lines.length;i++){
         const marker=lines[i].match(/^\s*\/\*{3,}\s*(\w+)\s*\*{3,}\/\s*$/);
         if(marker){
             section=/^(parameter|reg|wire)$/.test(marker[1])?{id:i,name:marker[1],indent:null}:undefined;
+            if(section){
+                if(regionId===undefined)regionId=i;
+            }else if(!/^(function|port|mechine)$/.test(marker[1])){
+                regionId=undefined;regionIndent=undefined;
+            }
             continue;
         }
-        if(!section||!codeLines[i].trim())continue;
+        if(!codeLines[i].trim())continue;
         const entry=byLine.get(i);
+        if(entry?.type==='genvar'&&(regionIndent===undefined||entry.ind.length===regionIndent)){
+            section=undefined;continue; // 独立声明列，不把它当作新作用域。
+        }
+        if(!section){regionId=undefined;regionIndent=undefined;continue;}
         const matches=entry&&!entry.tag&&(section.name==='parameter'
             ?/^(parameter|localparam)\b/.test(entry.type):section.name==='reg'
             ?/^(reg|logic|bit|int|integer)\b/.test(entry.type)
             :/^(wire|tri|wand|wor)\b/.test(entry.type));
         if(!matches||(section.indent!==null&&entry.ind.length!==section.indent)){
-            section=undefined;continue;
+            section=undefined;regionId=undefined;regionIndent=undefined;continue;
         }
+        if(regionIndent!==undefined&&entry.ind.length!==regionIndent)regionId=i;
+        regionIndent=entry.ind.length;
         section.indent=entry.ind.length;
-        sectionByLine.set(i,section.id);
+        sectionByLine.set(i,{id:section.id,regionId});
         if(entry.continuationEnd!==undefined)i=entry.continuationEnd;
     }
     const groups=[],headerGroups=new Map(),sectionGroups=new Map();
@@ -615,12 +634,12 @@ function formatLineRange(lines,tabValue,startLine,endLine){
             group=undefined;previous=undefined;
             continue;
         }
-        const sectionId=sectionByLine.get(entry.i);
-        if(sectionId!==undefined){
-            let declarationGroup=sectionGroups.get(sectionId);
+        const declarationSection=sectionByLine.get(entry.i);
+        if(declarationSection!==undefined){
+            let declarationGroup=sectionGroups.get(declarationSection.id);
             if(!declarationGroup){
-                declarationGroup={kind,indent:entry.ind.length,entries:[]};
-                sectionGroups.set(sectionId,declarationGroup);groups.push(declarationGroup);
+                declarationGroup={kind,indent:entry.ind.length,entries:[],regionId:declarationSection.regionId};
+                sectionGroups.set(declarationSection.id,declarationGroup);groups.push(declarationGroup);
             }
             declarationGroup.entries.push(entry);
             group=undefined;previous=undefined;
@@ -639,11 +658,23 @@ function formatLineRange(lines,tabValue,startLine,endLine){
         group.entries.push(entry);
         previous=entry;
     }
+    const regions=new Map(),regionColumns=new Map();
+    for(const current of groups){
+        if(current.regionId===undefined)continue;
+        const entries=regions.get(current.regionId)||[];
+        entries.push(...current.entries);regions.set(current.regionId,entries);
+    }
+    for(const [id,entries] of regions)regionColumns.set(id,computeDeclarationColumns(entries,tab,false,true));
     const columnsByLine=new Map(),declarationContinuations=new Map();
     for(const current of groups){
-        const cols=current.kind==='instance'
+        let cols=current.kind==='instance'
             ?computeInstanceColumns(current.entries,tab).get(current.indent)
             :computeDeclarationColumns(current.entries,tab,current.kind==='port');
+        const shared=regionColumns.get(current.regionId);
+        if(shared){
+            const cc=cols.hasInitializers?padToTab(shared.vc+cols.maxValueWidth+1,tab)-1:shared.ec-1;
+            cols={...cols,bc:shared.bc,cp:shared.cp,nc:shared.nc,ec:shared.ec,vc:shared.vc,qc:shared.qc,cc};
+        }
         for(const entry of current.entries){
             const entryCols=current.kind!=='instance'&&current.kind!=='port'&&isLongDeclarationHead(entry)
                 ?computeDeclarationColumns([entry],tab,true):cols;
