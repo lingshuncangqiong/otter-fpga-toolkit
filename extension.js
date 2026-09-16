@@ -578,19 +578,15 @@ function formatLineRange(lines,tabValue,startLine,endLine){
 
     const kindOf=p=>p.tag?'instance':/^(parameter|localparam)\b/.test(p.type)?'parameter':
         /^(input|output|inout)\b/.test(p.type)?'port':p.type==='genvar'?'genvar':'signal';
-    // 显式 parameter/reg/wire 分区内，空行和说明注释只分隔语义，不重置字段列宽。
+    // 分区标题只分隔尾列；共享声明头由实际语句类型决定，不依赖 reg/mechine 等名称。
     // 一旦出现其它代码、预处理或缩进变化就结束区域，避免跨 generate/模块作用域。
     const sectionByLine=new Map();
     let section,regionId,regionIndent;
     for(let i=0;i<lines.length;i++){
         const marker=lines[i].match(/^\s*\/\*{3,}\s*(\w+)\s*\*{3,}\/\s*$/);
         if(marker){
-            section=/^(parameter|reg|wire)$/.test(marker[1])?{id:i,name:marker[1],indent:null}:undefined;
-            if(section){
-                if(regionId===undefined)regionId=i;
-            }else if(!/^(function|port|mechine)$/.test(marker[1])){
-                regionId=undefined;regionIndent=undefined;
-            }
+            section={id:i,indent:null};
+            if(regionId===undefined)regionId=i;
             continue;
         }
         if(!codeLines[i].trim())continue;
@@ -599,10 +595,8 @@ function formatLineRange(lines,tabValue,startLine,endLine){
             section=undefined;continue; // 独立声明列，不把它当作新作用域。
         }
         if(!section){regionId=undefined;regionIndent=undefined;continue;}
-        const matches=entry&&!entry.tag&&(section.name==='parameter'
-            ?/^(parameter|localparam)\b/.test(entry.type):section.name==='reg'
-            ?/^(reg|logic|bit|int|integer)\b/.test(entry.type)
-            :/^(wire|tri|wand|wor)\b/.test(entry.type));
+        const matches=entry&&!entry.tag&&
+            /^(parameter|localparam|reg|logic|bit|int|integer|wire|tri|wand|wor)\b/.test(entry.type);
         if(!matches||(section.indent!==null&&entry.ind.length!==section.indent)){
             section=undefined;regionId=undefined;regionIndent=undefined;continue;
         }

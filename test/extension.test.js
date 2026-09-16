@@ -613,6 +613,39 @@ test('跨 parameter/reg/wire 共用声明头列，修饰符单独对齐，尾列
     assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
 });
 
+test('有内容的 mechine 和其它星号分区不隔断状态常量与 reg 的对齐', () => {
+    const source = [
+        'module demo;',
+        '/***************mechine***************/',
+        "localparam [1:0] P_ST_IDLE = 2'd0; // idle",
+        "localparam [1:0] P_ST_WORK = 2'd1; // work",
+        '/***************reg*******************/',
+        '// 状态机状态寄存器',
+        'reg [1:0] r_st_current = P_ST_IDLE; // current',
+        'reg [1:0] r_st_next; // next',
+        '/***************custom_state*********/',
+        "reg [P_COUNT_DW-1:0] r_count = '0; // count",
+        '/***************wire******************/',
+        'wire w_active;',
+        '/***************always****************/',
+        'always @(posedge i_clk) begin',
+        '    reg [63:0] r_local;',
+        'end',
+        'endmodule'
+    ];
+    const fmt=lines=>formatLineRange(lines,4,0,lines.length-1).lines;
+    const result=fmt(source), rows=[2,3,6,7,9,11];
+    assert.equal(new Set(rows.map(i=>result[i].indexOf(parseLine(result[i],4).name))).size,1);
+    assert.equal(new Set([2,3,6,7,9].map(i=>result[i].indexOf('['))).size,1);
+    assert.equal(new Set([2,3,6,7,9].map(i=>result[i].indexOf(':0]'))).size,1);
+    assert.equal(new Set([2,3,6,9].map(i=>result[i].indexOf('='))).size,1);
+    const changed=source.map((l,i)=>i===14?'    reg [1023:0] r_very_long_local_signal;':l);
+    assert.deepEqual(fmt(changed).slice(0,14),result.slice(0,14));
+    assert.equal(formatLineRange(source,4,6,6).lines[6],result[6]);
+    assert.deepEqual(fmt(result),result);
+    assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
+});
+
 test('多模块和同缩进的不同实例分别对齐，不改注释内的伪声明', () => {
     const source = [
         'module a;',
