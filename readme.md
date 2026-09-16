@@ -2,6 +2,12 @@
 
 > 小水獭的 FPGA/Verilog 开发利器，集成语法检查、一键例化、代码排版、高亮、端口方向提示、跨文件跳转和模块层次树
 
+## 2.1.19 更新
+
+- 模块体采用CST声明排版，跨分区统一 localparam/reg/wire/genvar 列；数组维度与范围冒号按语法结构处理。
+- VS Code和CLI共用引擎，支持中文、BOM、选区与长初值；编辑器后台排版，解析失败不改源码。
+- 此版本提供 **Windows x64** 安装包，内置Verible解析器；完整范围与限制见下方“代码排版”。
+
 ## 功能一览
 
 | 功能 | 快捷键/触发 | 说明 |
@@ -175,6 +181,11 @@ Xilinx 原语方向会根据 `verilogInstantiate.xvlogPath` 定位对应 Vivado 
 ```
 otter-fpga-toolkit/
 ├── extension.js                # 主逻辑 (例化/排版/检查/跳转/补全)
+├── cst-layout.js               # CST声明字段与作用域布局
+├── cst-runtime.js              # 合并选区编辑并检查token
+├── cst-editor.js / cst-worker.js # 后台排版
+├── format-cli.js               # 编辑器外的check/write入口
+├── vendor/verible/             # Windows x64解析器、来源和许可证
 ├── rtl-parser.js               # module/port/instance 纯文本解析
 ├── vendor-metadata.js          # Vivado XCI/BD 元数据与原语源码定位
 ├── workspace-features.js       # Inlay Hints、跨文件跳转和模块层次树
@@ -193,4 +204,4 @@ otter-fpga-toolkit/
 
 ## 许可
 
-MIT License - 水獭出品
+Otter源码采用MIT License。随包附带的Verible解析器及其第三方组件许可证见 `vendor/verible/LICENSE.txt`，来源与文件摘要见 `vendor/verible/SOURCE.json`。
