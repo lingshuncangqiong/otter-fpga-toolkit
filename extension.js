@@ -563,7 +563,29 @@ function formatLineRange(lines,tabValue,startLine,endLine){
 
     const kindOf=p=>p.tag?'instance':/^(parameter|localparam)\b/.test(p.type)?'parameter':
         /^(input|output|inout)\b/.test(p.type)?'port':p.type==='genvar'?'genvar':'signal';
-    const groups=[],headerGroups=new Map();
+    // 显式 reg/wire 分区内，空行和说明注释只分隔语义，不重置字段列宽。
+    // 一旦出现其它代码、预处理或缩进变化就结束区域，避免跨 generate/模块作用域。
+    const sectionByLine=new Map();
+    let section;
+    for(let i=0;i<lines.length;i++){
+        const marker=lines[i].match(/^\s*\/\*{3,}\s*(\w+)\s*\*{3,}\/\s*$/);
+        if(marker){
+            section=/^(reg|wire)$/.test(marker[1])?{id:i,name:marker[1],indent:null}:undefined;
+            continue;
+        }
+        if(!section||!codeLines[i].trim())continue;
+        const entry=byLine.get(i);
+        const matches=entry&&!entry.tag&&(section.name==='reg'
+            ?/^(reg|logic|bit|int|integer)\b/.test(entry.type)
+            :/^(wire|tri|wand|wor)\b/.test(entry.type));
+        if(!matches||(section.indent!==null&&entry.ind.length!==section.indent)){
+            section=undefined;continue;
+        }
+        section.indent=entry.ind.length;
+        sectionByLine.set(i,section.id);
+        if(entry.continuationEnd!==undefined)i=entry.continuationEnd;
+    }
+    const groups=[],headerGroups=new Map(),sectionGroups=new Map();
     let headerIndex=0;
     let group,previous;
     for(const entry of all){
@@ -582,6 +604,17 @@ function formatLineRange(lines,tabValue,startLine,endLine){
             }
             entry.ind=headerGroup.indentText;
             headerGroup.entries.push(entry);
+            group=undefined;previous=undefined;
+            continue;
+        }
+        const sectionId=sectionByLine.get(entry.i);
+        if(sectionId!==undefined){
+            let declarationGroup=sectionGroups.get(sectionId);
+            if(!declarationGroup){
+                declarationGroup={kind,indent:entry.ind.length,entries:[]};
+                sectionGroups.set(sectionId,declarationGroup);groups.push(declarationGroup);
+            }
+            declarationGroup.entries.push(entry);
             group=undefined;previous=undefined;
             continue;
         }

@@ -458,6 +458,78 @@ test('空行、分区与缩进隔离声明组，普通注释不破坏组内对�
     assert.deepEqual(formatLineRange(result, 4, 0, result.length - 1).lines, result);
 });
 
+test('显式 reg/wire 分区跨空行和注释统一列宽，保留分组与选区边界', () => {
+    const source = [
+        'module demo;',
+        '/***************reg*******************/',
+        '// 序列推进状态',
+        "reg [P_ADDR_AW-1:0] r_addr = {P_ADDR_AW{1'b0}}; // 地址",
+        "reg [P_SEQ_LEN_DW-1:0] r_remain = {P_SEQ_LEN_DW{1'b0}}; // 剩余数",
+        '',
+        '// 命令配置锁存',
+        "reg [P_ADDR_AW-1:0] r_addr_step = {P_ADDR_AW{1'b0}}; // 步长",
+        '',
+        '// 控制状态',
+        "reg r_seq_run = 1'b0; // 运行",
+        "reg r_done_pulse = 1'b0; // 完成",
+        '/***************wire******************/',
+        'wire w_cmd_active; // 命令握手',
+        '',
+        'wire w_addr_active; // 地址握手',
+        '/***************always****************/',
+        'endmodule'
+    ];
+    const fmt = lines => formatLineRange(lines, 4, 0, lines.length - 1).lines;
+    const result = fmt(source);
+    const regs = [3, 4, 7, 10, 11];
+    for(const column of [l=>l.indexOf(parseLine(l, 4).name),l=>l.indexOf('='),l=>l.indexOf('//')]){
+        assert.equal(new Set(regs.map(i=>column(result[i]))).size, 1);
+    }
+    assert.equal(result[3].indexOf(':0]'), result[7].indexOf(':0]'));
+    assert.ok(result[13].indexOf('w_cmd_active') < result[10].indexOf('r_seq_run'));
+    for(let i=0;i<source.length;i++)if(!parseLine(source[i],4))assert.equal(result[i],source[i]);
+    assert.deepEqual(fmt(result),result);
+    assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
+    const partial=formatLineRange(source,4,7,7).lines;
+    assert.equal(partial[7],result[7]);
+    assert.deepEqual(partial.slice(0,7),source.slice(0,7));
+    assert.deepEqual(partial.slice(8),source.slice(8));
+});
+
+test('声明分区遇到 generate、预处理和新 module 不跨界计算列宽', () => {
+    const source = [
+        'module a;',
+        '/***************reg*******************/',
+        "reg [31:0] r_outer_long_name = '0;",
+        'generate',
+        'if (1) begin : g',
+        '    /***************reg*******************/',
+        "    reg [7:0] r_local = '0;",
+        '',
+        "    reg r_local_valid = '0;",
+        'end',
+        'endgenerate',
+        "reg r_after = '0;",
+        'endmodule',
+        'module b;',
+        '/***************reg*******************/',
+        "reg r_other = '0;",
+        '`ifdef FEATURE',
+        "reg [127:0] r_branch_with_a_long_name = '0;",
+        '`endif',
+        "reg r_end = '0;",
+        'endmodule'
+    ];
+    const fmt=lines=>formatLineRange(lines,4,0,lines.length-1).lines;
+    const result=fmt(source);
+    const larger=source.map((l,i)=>i===2?"reg [P_EXTRA_WIDE_BUS_DW-1:0] r_very_long_outer_name = '0;":l);
+    assert.deepEqual(fmt(larger).slice(3),result.slice(3));
+    assert.equal(result[6].indexOf('r_local'),result[8].indexOf('r_local_valid'));
+    assert.ok(result[15].indexOf('r_other') < result[17].indexOf('r_branch_with_a_long_name'));
+    assert.equal(result[11],fmt([source[11]])[0]);
+    assert.deepEqual(fmt(result),result);
+});
+
 test('多模块和同缩进的不同实例分别对齐，不改注释内的伪声明', () => {
     const source = [
         'module a;',
