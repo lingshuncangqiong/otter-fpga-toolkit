@@ -1,5 +1,6 @@
 *.vsix
 node_modules/
+/_formatter_lab/
 *.log
 *.pb
 a.out

@@ -1,5 +1,6 @@
 .vscode/**
 node_modules/**
+_formatter_lab/**
 .git/**
 .gitignore
 *.vsix
