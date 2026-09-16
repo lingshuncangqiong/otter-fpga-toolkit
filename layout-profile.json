@@ -1,0 +1,7 @@
+{
+  "fieldGap": 2,
+  "initializerGap": 3,
+  "initializerAlignmentLimit": 96,
+  "alignPackedRangeColon": true,
+  "description": "同一 module/generate 作用域共用声明头列；参数、变量、网络分别计算尾列；超长初值不撑宽尾列。"
+}

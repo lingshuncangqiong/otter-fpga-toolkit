@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/chipsalliance/verible",
+  "asset_tag": "v0.0-4214-gce503962",
+  "asset_url": "https://github.com/chipsalliance/verible/releases/download/v0.0-4214-gce503962/verible-v0.0-4214-gce503962-win64.zip",
+  "asset_sha256": "0067df938b18bc60b6de34b5597893c27e4eb97988255c69263de2091299076e",
+  "reported_binary_version": "v0.0-4192-g682a1d50",
+  "evaluation_date": "2026-09-16",
+  "platform": "win32-x64",
+  "binary_sha256": "85d36ab70056858c05d1518ab59ee7890d63538b36fe7e5e64c14d2ca76264e6"
+}

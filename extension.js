@@ -67,6 +67,7 @@ function formatterInterface(request){
             file:result.absolutePath,
             changed:result.changed,
             changedLines:result.changedLines,
+            skipped:result.skipped,
             wrote:mode==='write'&&result.changed
         };
     }catch(error){
@@ -158,7 +159,12 @@ function activate(context) {
         const doc = editor.document;
         const lines=[];
         for(let i=0;i<doc.lineCount;i++)lines.push(doc.lineAt(i).text);
-        const result=formatLineRange(lines,tab,s,e);
+        const documentVersion=doc.version;
+        let result;
+        try{result=await require('./cst-editor').formatAsync(lines,tab,s,e);}
+        catch(error){vscode.window.showErrorMessage('CST 排版未修改文件: '+error.message);return;}
+        if(doc.version!==documentVersion){vscode.window.showWarningMessage('文件在排版期间已变化，请重试');return;}
+        if(result.skipped.length)vscode.window.showWarningMessage('排版保留了 '+result.skipped.length+' 处未覆盖的复杂声明');
         const edits=result.changes.map(change=>{
             const orig=doc.lineAt(change.line).text;
             return vscode.TextEdit.replace(new vscode.Range(change.line,0,change.line,orig.length),change.text);
@@ -538,7 +544,7 @@ function computeDeclarationColumns(entries,tab,fullWidth=false,separateQualifier
     return {bc,cp,nc,ec,vc,cc,qc,hasInitializers:!!he,maxValueWidth:me};
 }
 
-function formatLineRange(lines,tabValue,startLine,endLine){
+function formatInterfaceLines(lines,tabValue,startLine,endLine){
     const tab=normalizeTabSize(tabValue);
     const first=Math.max(0,Number.isFinite(startLine)?Math.trunc(startLine):0);
     const last=Math.min(lines.length-1,Number.isFinite(endLine)?Math.trunc(endLine):lines.length-1);
@@ -554,59 +560,14 @@ function formatLineRange(lines,tabValue,startLine,endLine){
         if(!codeLines[i].trim())continue;
         const p=parseLine(lines[i],tab);
         if(!p)continue;
+        const inHeader=headers.some(m=>lineOffsets[i]>m.nameOffset&&lineOffsets[i]<=m.headerEnd);
+        if(!p.tag?.startsWith('inst_port')&&!(inHeader&&/^(input|output|inout|parameter|localparam)\b/.test(p.type)))continue;
         const entry={i,...p};all.push(entry);byLine.set(i,entry);
     }
     if(!all.length||last<first)return {lines:lines.slice(),changes:[]};
 
-    // 完整的跨行声明仍属于首行所在组，不被表达式续行切开。
-    for(const entry of all){
-        if(!entry.continues)continue;
-        const contentLines=[];
-        for(let line=entry.i+1;line<lines.length&&line<=entry.i+256;line++){
-            if(byLine.has(line))break;
-            const code=codeLines[line];
-            if(/^\s*(?:always|endmodule|endgenerate|endfunction|endtask|assign|module|generate)\b/.test(code))break;
-            const firstToken=/\S/.exec(code);
-            if(firstToken)contentLines.push({line,column:firstToken.index});
-            if(/;\s*$/.test(code)){
-                entry.continuationEnd=line;
-                entry.continuationLines=contentLines;
-                break;
-            }
-        }
-    }
-
-    const kindOf=p=>p.tag?'instance':/^(parameter|localparam)\b/.test(p.type)?'parameter':
-        /^(input|output|inout)\b/.test(p.type)?'port':p.type==='genvar'?'genvar':'signal';
-    // 分区标题只分隔尾列；共享声明头由实际语句类型决定，不依赖 reg/mechine 等名称。
-    // 一旦出现其它代码、预处理或缩进变化就结束区域，避免跨 generate/模块作用域。
-    const sectionByLine=new Map();
-    let section,regionId,regionIndent;
-    for(let i=0;i<lines.length;i++){
-        const marker=lines[i].match(/^\s*\/\*{3,}\s*(\w+)\s*\*{3,}\/\s*$/);
-        if(marker){
-            section={id:i,indent:null};
-            if(regionId===undefined)regionId=i;
-            continue;
-        }
-        if(!codeLines[i].trim())continue;
-        const entry=byLine.get(i);
-        if(entry?.type==='genvar'&&(regionIndent===undefined||entry.ind.length===regionIndent)){
-            section=undefined;continue; // 独立声明列，不把它当作新作用域。
-        }
-        if(!section){regionId=undefined;regionIndent=undefined;continue;}
-        const matches=entry&&!entry.tag&&
-            /^(parameter|localparam|reg|logic|bit|int|integer|wire|tri|wand|wor)\b/.test(entry.type);
-        if(!matches||(section.indent!==null&&entry.ind.length!==section.indent)){
-            section=undefined;regionId=undefined;regionIndent=undefined;continue;
-        }
-        if(regionIndent!==undefined&&entry.ind.length!==regionIndent)regionId=i;
-        regionIndent=entry.ind.length;
-        section.indent=entry.ind.length;
-        sectionByLine.set(i,{id:section.id,regionId});
-        if(entry.continuationEnd!==undefined)i=entry.continuationEnd;
-    }
-    const groups=[],headerGroups=new Map(),sectionGroups=new Map();
+    const kindOf=p=>p.tag?'instance':/^(parameter|localparam)\b/.test(p.type)?'parameter':'port';
+    const groups=[],headerGroups=new Map();
     let headerIndex=0;
     let group,previous;
     for(const entry of all){
@@ -628,17 +589,6 @@ function formatLineRange(lines,tabValue,startLine,endLine){
             group=undefined;previous=undefined;
             continue;
         }
-        const declarationSection=sectionByLine.get(entry.i);
-        if(declarationSection!==undefined){
-            let declarationGroup=sectionGroups.get(declarationSection.id);
-            if(!declarationGroup){
-                declarationGroup={kind,indent:entry.ind.length,entries:[],regionId:declarationSection.regionId};
-                sectionGroups.set(declarationSection.id,declarationGroup);groups.push(declarationGroup);
-            }
-            declarationGroup.entries.push(entry);
-            group=undefined;previous=undefined;
-            continue;
-        }
         let boundary=!previous||kind!==group.kind||entry.ind.length!==group.indent;
         if(!boundary){
             for(let line=(previous.continuationEnd??previous.i)+1;line<entry.i;line++){
@@ -652,33 +602,15 @@ function formatLineRange(lines,tabValue,startLine,endLine){
         group.entries.push(entry);
         previous=entry;
     }
-    const regions=new Map(),regionColumns=new Map();
-    for(const current of groups){
-        if(current.regionId===undefined)continue;
-        const entries=regions.get(current.regionId)||[];
-        entries.push(...current.entries);regions.set(current.regionId,entries);
-    }
-    for(const [id,entries] of regions)regionColumns.set(id,computeDeclarationColumns(entries,tab,false,true));
-    const columnsByLine=new Map(),declarationContinuations=new Map();
+    const columnsByLine=new Map();
     for(const current of groups){
         let cols=current.kind==='instance'
             ?computeInstanceColumns(current.entries,tab).get(current.indent)
             :computeDeclarationColumns(current.entries,tab,current.kind==='port');
-        const shared=regionColumns.get(current.regionId);
-        if(shared){
-            const cc=cols.hasInitializers?padToTab(shared.vc+cols.maxValueWidth+1,tab)-1:shared.ec-1;
-            cols={...cols,bc:shared.bc,cp:shared.cp,nc:shared.nc,ec:shared.ec,vc:shared.vc,qc:shared.qc,cc};
-        }
         for(const entry of current.entries){
             const entryCols=current.kind!=='instance'&&current.kind!=='port'&&isLongDeclarationHead(entry)
                 ?computeDeclarationColumns([entry],tab,true):cols;
             columnsByLine.set(entry.i,entryCols);
-            const content=entry.continuationLines;
-            if(!content||!content.length)continue;
-            const baseColumn=Math.min(...content.map(item=>item.column));
-            for(const item of content){
-                declarationContinuations.set(item.line,entryCols.vc+item.column-baseColumn);
-            }
         }
     }
     const formatted=lines.slice(),changes=[];
@@ -687,11 +619,7 @@ function formatLineRange(lines,tabValue,startLine,endLine){
         let output;
         if(entry){
             output=doFmt(entry,columnsByLine.get(i),lines[i]);
-        }else{
-            const targetColumn=declarationContinuations.get(i);
-            if(targetColumn===undefined)continue;
-            output=' '.repeat(targetColumn)+lines[i].replace(/^\s*/,'');
-        }
+        }else continue;
         if(output!==lines[i]){
             formatted[i]=output;
             changes.push({line:i,text:output});
@@ -1034,6 +962,9 @@ function genInst(mod,indent){
     return '\n'+ls.join('\n')+'\n';
 }
 
+function formatLineRange(lines,tabValue,startLine,endLine){
+    return require('./cst-runtime').format(lines,normalizeTabSize(tabValue),startLine,endLine,formatInterfaceLines);
+}
 function deactivate(){}
 module.exports={
     activate,

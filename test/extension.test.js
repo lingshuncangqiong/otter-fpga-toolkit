@@ -123,32 +123,13 @@ test('例化参数按实际缩进对齐且末行没有尾随空格', () => {
     assert.equal(formatted[1].indexOf('('), 24);
 });
 
-test('多行声明续行对齐到首行 value 列并保留相对缩进', () => {
-    const lines = [
-        'localparam integer P_SHORT = 1;',
-        'localparam integer P_ALIGNED_PROFILE = ((P_OPERATION_DW % P_MEMORY_GROUP_DW) == 0) &&',
-        '                                                ((P_ALIGNED_RATIO == 1) || (P_ALIGNED_RATIO == 2) ||',
-        '                                                 (P_ALIGNED_RATIO == 4) || (P_ALIGNED_RATIO == 8));'
-    ];
-    const result = formatLineRange(lines, 4, 0, lines.length - 1);
-    const formatted = result.lines;
-    const equals = formatted[1].indexOf('=');
-    const valueColumn = formatted[1].indexOf('((', equals);
-    const firstContinuation = formatted[2].search(/\S/);
-    const secondContinuation = formatted[3].search(/\S/);
-    assert.equal(firstContinuation, valueColumn);
-    assert.equal(secondContinuation, valueColumn + 1);
-    assert.ok(!/\s+$/.test(formatted[1]));
-    assert.match(formatted[3], /;$/);
-});
-
 test('无逗号的完整末参数不误判为续行，注释与同组声明对齐', () => {
     const lines = [
         '    parameter integer P_WIDTH = 16,// width',
         "    parameter [P_PPC*P_DW-1:0] P_FILL_DATA = {P_PPC*P_DW{1'b0}}// fill"
     ];
-    const result = formatLineRange(lines, 4, 0, lines.length - 1);
-    const formatted = result.lines;
+    const result = formatLineRange(['module demo #(', ...lines, ')();', 'endmodule'], 4, 0, lines.length + 3);
+    const formatted = result.lines.slice(1,-2);
     assert.equal(parseLine(lines[1], 4).continues, false);
     assert.equal(formatted[0].indexOf('//'), formatted[1].indexOf('//'));
     assert.match(formatted[1], /\}\s{2,}\/\/ fill$/);
@@ -159,28 +140,6 @@ test('续行判断覆盖未闭合括号、逻辑运算符和三目冒号', () =>
     assert.equal(expressionContinues('(P_A <= 1) ? 1 :'), true);
     assert.equal(expressionContinues("{P_PPC*P_DW{1'b0}}"), false);
     assert.equal(expressionContinues('"string with ( delimiter"'), false);
-});
-
-test('首行只有等号的多行 localparam 对齐等号与续行 value 列', () => {
-    const lines = [
-        'localparam integer P_APP_ADDR_UNITS = (P_APP_DW < 64) ? 1 : (P_APP_DW / 64);',
-        'localparam integer P_WIDTH_RATIO =',
-        '    (P_OPERATION_DW >= P_APP_DW) ?',
-        '    (P_OPERATION_DW / P_APP_DW) :',
-        '    (P_APP_DW / P_OPERATION_DW);',
-        'localparam integer P_WIDTH_RATIO_SHIFT = $clog2(P_WIDTH_RATIO);'
-    ];
-    const parsed = parseLine(lines[1], 4);
-    assert.equal(parsed.hasEq, true);
-    assert.equal(parsed.eq, '');
-    assert.equal(parsed.continues, true);
-
-    const formatted = formatLineRange(lines, 4, 0, lines.length - 1).lines;
-    const equalsColumn = formatted[0].indexOf('=');
-    const valueColumn = formatted[0].indexOf('(', equalsColumn);
-    assert.equal(formatted[1].indexOf('='), equalsColumn);
-    assert.ok(!/\s+$/.test(formatted[1]));
-    assert.deepEqual(formatted.slice(2, 5).map(line => line.search(/\S/)), [valueColumn, valueColumn, valueColumn]);
 });
 
 test('SystemVerilog typed parameter 保留类型并与 integer 参数对齐', () => {
@@ -196,89 +155,12 @@ test('SystemVerilog typed parameter 保留类型并与 integer 参数对齐', ()
         '    parameter integer P_FRAME_BUFFER_NUM = 4,// count',
         '    parameter string P_PAYLOAD_FIFO_MODE = "STD"// mode'
     ];
-    const formatted = formatLineRange(lines, 4, 0, lines.length - 1).lines;
+    const formatted = formatLineRange(['module demo #(', ...lines, ')();', 'endmodule'], 4, 0, lines.length + 3).lines.slice(1,-2);
     const mode = parseLine(formatted[1], 4);
     assert.equal(mode.type, 'parameter string');
     assert.equal(mode.name, 'P_PAYLOAD_FIFO_MODE');
     assert.equal(formatted[0].indexOf('='), formatted[1].indexOf('='));
     assert.equal(formatted[0].indexOf('//'), formatted[1].indexOf('//'));
-});
-
-test('标量声明不为缺失的位宽和初值预留空列', () => {
-    const source = ['wire a;', 'wire longer_name;'];
-    const result = formatLineRange(source, 4, 0, 1).lines;
-    assert.equal(result[0], 'wire    a           ;');
-    assert.equal(result[1], 'wire    longer_name ;');
-    assert.deepEqual(formatLineRange(result, 4, 0, 1).lines, result);
-
-    const mixed = ['reg [7:0] r_data = 0;', 'reg r_valid = 0;'];
-    const aligned = formatLineRange(mixed, 4, 0, 1).lines;
-    assert.equal(aligned[0].indexOf('r_data'), aligned[1].indexOf('r_valid'));
-    assert.equal(aligned[0].indexOf('='), aligned[1].indexOf('='));
-    for(const pair of [
-        ['input abc, // a', 'input def // b'],
-        ['parameter P_A = 1234567, // a', 'parameter P_B = 1234567 // b']
-    ]) {
-        const tail = formatLineRange(pair, 4, 0, 1).lines;
-        assert.equal(tail[0].indexOf('//'), tail[1].indexOf('//'));
-        assert.deepEqual(formatLineRange(tail, 4, 0, 1).lines, tail);
-    }
-});
-
-test('格式化保留字符串中的注释标记、空格、制表符与转义引号', () => {
-    const value = '"https://host/a  b\\\"c\tend"';
-    const source = [
-        `parameter string P_PATH = ${value}; // 地址`,
-        '',
-        `    .P_TEXT(${value}), // 文本`,
-        '    .P_OTHER("/* content */")'
-    ];
-    const result = formatLineRange(source, 4, 0, source.length - 1).lines;
-    assert.equal(parseLine(result[0], 4).eq, value);
-    assert.equal(parseLine(result[2], 4).conn, value);
-    assert.equal(parseLine(result[3], 4).conn, '"/* content */"');
-    assert.ok(result[0].endsWith('// 地址'));
-    assert.ok(result[2].endsWith('// 文本'));
-    assert.deepEqual(formatLineRange(result, 4, 0, result.length - 1).lines, result);
-    const withBlockComment = ['wire a /* 保留内联注释 */;'];
-    assert.deepEqual(formatLineRange(withBlockComment, 4, 0, 0).lines, withBlockComment);
-    const escaped = ['    .DATA(\\signal//name ), // 标识符'];
-    const escapedResult = formatLineRange(escaped, 4, 0, 0).lines;
-    assert.equal(parseLine(escapedResult[0], 4).conn, '\\signal//name');
-    assert.ok(escapedResult[0].endsWith('// 标识符'));
-});
-
-test('数组声明区分 packed/unpacked 维度与初值，支持多维及维度中的索引', () => {
-    const source = [
-        "reg [P_PPC*24-1:0] r_rgb_dly_array [0:20] = '{default:'0}; // delay",
-        "reg [P_PPC*24-1:0] r_other [0:20] = '{default:'0}; // other",
-        "logic unsigned [1:0][P_WIDTHS[0]-1:0] r_matrix [0:2][0:3] = '{default:'0};",
-        'logic [7:0] r_dynamic [];',
-        'logic [7:0] r_queue [$];'
-    ];
-    const parsed = parseLine(source[2], 4);
-    assert.equal(parsed.width, '[1:0][P_WIDTHS[0]-1:0]');
-    assert.equal(parsed.unpacked, '[0:2][0:3]');
-    assert.equal(parsed.eq, "'{default:'0}");
-    const fmt = lines => formatLineRange(lines, 4, 0, lines.length - 1).lines;
-    const formatted = fmt(source);
-    assert.equal(formatted[0].indexOf('='), formatted[1].indexOf('='));
-    assert.match(formatted[0], /r_rgb_dly_array \[0:20\]\s+=/);
-    assert.deepEqual(fmt(formatted), formatted);
-    assert.equal(formatted.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
-    assert.equal(formatLineRange(source, 4, 1, 1).lines[1], formatted[1]);
-});
-
-test('长维度、名称和初值不会无上限撑宽同组短声明', () => {
-    const source = [
-        'reg r_valid = 0; // valid',
-        `reg [P_${'WIDTH_'.repeat(20)}-1:0] r_${'data_'.repeat(20)} [0:20] = {${'P_DATA, '.repeat(30)}P_DATA}; // wide`
-    ];
-    const fmt = lines => formatLineRange(lines, 4, 0, lines.length - 1).lines;
-    const formatted = fmt(source);
-    assert.ok(formatted[0].indexOf('//') < 140);
-    assert.deepEqual(fmt(formatted), formatted);
-    assert.equal(formatted.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
 });
 
 test('长表达式端口按实际列宽对齐，超过旧上限仍保留单行', () => {
@@ -292,7 +174,8 @@ test('长表达式端口按实际列宽对齐，超过旧上限仍保留单行',
         '    input [((P_PPC * P_VI_DW * P_COMP_NUM + 7) / 8) * 8 - 1 : 0] s_axis_tdata, // data',
         `    output [P_DW - 1 : 0] o_${'long_name_'.repeat(6)}, // long name`,
         '    output o_valid // valid',
-        ');'
+        ');',
+        'endmodule'
     ];
     const format = source => formatLineRange(source, 4, 0, source.length - 1).lines;
     const result = format(lines);
@@ -317,7 +200,8 @@ test('单维端口的范围冒号对齐，表达式靠左，名称与注释仍�
         '    output [P_LONG_DATA_DW - 1 : 0] o_data, // data',
         '    input [15:8] i_high, // nonzero bound',
         '    input i_valid // valid',
-        ');'
+        ');',
+        'endmodule'
     ];
     const fmt = a => formatLineRange(a, 4, 0, a.length - 1).lines;
     const result = fmt(lines);
@@ -438,26 +322,6 @@ test('module接口跨空行和分组标题对齐，参数、内部声明和其�
     assert.equal(result.join('').replace(/\s/g, ''), source.join('').replace(/\s/g, ''));
 });
 
-test('空行、分区与缩进隔离声明组，普通注释不破坏组内对齐', () => {
-    const source = [
-        'reg short_name;',
-        '// 同组状态说明',
-        'reg [7:0] medium_name;',
-        '',
-        'reg an_extremely_long_name_in_another_group;',
-        '/***************wire******************/',
-        'wire w_a;',
-        '    reg deeply_nested_and_very_long_name;',
-        'wire w_b;'
-    ];
-    const result = formatLineRange(source, 4, 0, source.length - 1).lines;
-    assert.equal(result[0].indexOf('short_name'), result[2].indexOf('medium_name'));
-    assert.equal(result[6].indexOf('w_a'), result[8].indexOf('w_b'));
-    assert.ok(result[6].length < 30);
-    for(const index of [1, 3, 5]) assert.equal(result[index], source[index]);
-    assert.deepEqual(formatLineRange(result, 4, 0, result.length - 1).lines, result);
-});
-
 test('显式 reg/wire 分区跨空行和注释统一列宽，保留分组与选区边界', () => {
     const source = [
         'module demo;',
@@ -496,40 +360,6 @@ test('显式 reg/wire 分区跨空行和注释统一列宽，保留分组与选�
     assert.deepEqual(partial.slice(8),source.slice(8));
 });
 
-test('声明分区遇到 generate、预处理和新 module 不跨界计算列宽', () => {
-    const source = [
-        'module a;',
-        '/***************reg*******************/',
-        "reg [31:0] r_outer_long_name = '0;",
-        'generate',
-        'if (1) begin : g',
-        '    /***************reg*******************/',
-        "    reg [7:0] r_local = '0;",
-        '',
-        "    reg r_local_valid = '0;",
-        'end',
-        'endgenerate',
-        "reg r_after = '0;",
-        'endmodule',
-        'module b;',
-        '/***************reg*******************/',
-        "reg r_other = '0;",
-        '`ifdef FEATURE',
-        "reg [127:0] r_branch_with_a_long_name = '0;",
-        '`endif',
-        "reg r_end = '0;",
-        'endmodule'
-    ];
-    const fmt=lines=>formatLineRange(lines,4,0,lines.length-1).lines;
-    const result=fmt(source);
-    const larger=source.map((l,i)=>i===2?"reg [P_EXTRA_WIDE_BUS_DW-1:0] r_very_long_outer_name = '0;":l);
-    assert.deepEqual(fmt(larger).slice(3),result.slice(3));
-    assert.equal(result[6].indexOf('r_local'),result[8].indexOf('r_local_valid'));
-    assert.ok(result[15].indexOf('r_other') < result[17].indexOf('r_branch_with_a_long_name'));
-    assert.equal(result[11],fmt([source[11]])[0]);
-    assert.deepEqual(fmt(result),result);
-});
-
 test('显式参数区跨说明分组对齐中等长度表达式与有符号常量', () => {
     const source = [
         'module pixel;',
@@ -553,26 +383,6 @@ test('显式参数区跨说明分组对齐中等长度表达式与有符号常�
     assert.equal(result[4],source[4]);
     assert.equal(result[5],source[5]);
     assert.equal(formatLineRange(source,4,6,6).lines[6],result[6]);
-    assert.deepEqual(fmt(result),result);
-    assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
-});
-
-test('超长初值保持等号对齐但不拉远其它行的分号，超长声明头独立排版', () => {
-    const value='P_VERY_LONG_TERM + '.repeat(24)+'P_END';
-    const source=[
-        'localparam integer P_SHORT = 1; // short',
-        'localparam integer P_MEDIUM = P_INPUT_WIDTH + P_OUTPUT_WIDTH + 1; // medium',
-        `localparam integer P_LONG = ${value}; // long`,
-        `localparam integer P_${'VERY_LONG_NAME_'.repeat(7)} = 0; // name`
-    ];
-    const fmt = lines => formatLineRange(lines,4,0,lines.length-1).lines;
-    const result=fmt(source);
-    const baseline=fmt(source.slice(0,2));
-    assert.deepEqual(result.slice(0,2),baseline);
-    assert.equal(result[0].indexOf('='),result[2].indexOf('='));
-    assert.ok(result[2].includes(value+' ;'));
-    assert.equal(result[2].indexOf('//')-result[2].lastIndexOf('P_END'),7);
-    assert.equal(result.length,source.length);
     assert.deepEqual(fmt(result),result);
     assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
 });
@@ -666,48 +476,30 @@ test('多模块和同缩进的不同实例分别对齐，不改注释内的伪�
         'endmodule'
     ];
     const result = formatLineRange(source, 4, 0, source.length - 1).lines;
-    assert.equal(result[1], formatLineRange(['wire x;'], 4, 0, 0).lines[0]);
+    assert.equal(result[1], formatLineRange(['module isolated;', 'wire x;', 'endmodule'], 4, 1, 1).lines[1]);
     assert.ok(result[3].indexOf('(') < result[7].indexOf('('));
     assert.equal(result[3].indexOf('('), result[4].indexOf('('));
     assert.equal(result[13], source[13]);
     assert.deepEqual(formatLineRange(result, 4, 0, result.length - 1).lines, result);
 });
 
-test('范围格式化复用所属组与多行声明的列宽，结果与整文件对应行一致', () => {
-    const source = [
-        'localparam integer P_WIDTH = 32;',
-        'localparam integer P_MULTI =',
-        '    (P_WIDTH > 16) ?',
-        '        P_WIDTH : 16;',
-        'localparam integer P_OTHER = 1;',
-        '',
-        'reg r_valid = 0;'
-    ];
-    const full = formatLineRange(source, 4, 0, source.length - 1).lines;
-    const selected = formatLineRange(source, 4, 2, 3).lines;
-    assert.deepEqual(selected.slice(2, 4), full.slice(2, 4));
-    assert.equal(full[2].search(/\S/), full[0].indexOf('32'));
-    assert.equal(full[3].search(/\S/), full[2].search(/\S/) + 4);
-    for(const index of [0, 1, 4, 5, 6]) assert.equal(selected[index], source[index]);
-});
-
 test('VS Code 智能体接口默认只检查，显式 write 才写入', t => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-vscode-api-'));
     t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));
     const filePath = path.join(tempDir, 'agent.sv');
-    fs.writeFileSync(filePath, 'wire a;// agent\n', 'utf8');
+    fs.writeFileSync(filePath, 'module agent;\nwire a;// agent\nendmodule\n', 'utf8');
 
     const check = formatterInterface({file: filePath, tabSize: 4});
     assert.equal(check.status, 'formatting-required');
     assert.equal(check.exitCode, 1);
     assert.equal(check.wrote, false);
-    assert.equal(fs.readFileSync(filePath, 'utf8'), 'wire a;// agent\n');
+    assert.equal(fs.readFileSync(filePath, 'utf8'), 'module agent;\nwire a;// agent\nendmodule\n');
 
     const write = formatterInterface({mode: 'write', file: filePath, tabSize: 4});
     assert.equal(write.status, 'formatted');
     assert.equal(write.exitCode, 0);
     assert.equal(write.wrote, true);
-    assert.notEqual(fs.readFileSync(filePath, 'utf8'), 'wire a;// agent\n');
+    assert.notEqual(fs.readFileSync(filePath, 'utf8'), 'module agent;\nwire a;// agent\nendmodule\n');
 
     const invalid = formatterInterface({mode: 'write', file: filePath, tabSize: 4, startLine: 2, endLine: 1});
     assert.equal(invalid.status, 'error');

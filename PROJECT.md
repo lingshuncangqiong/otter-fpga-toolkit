@@ -28,6 +28,11 @@ Otter-FPGA-Toolkit/
 ├── AGENTS.md                   ← 智能体开发与发布约束
 ├── PROJECT.md                  ← 本文件（项目上下文与历史）
 ├── extension.js                ← 扩展主逻辑
+├── cst-layout.js               ← Verible CST 声明字段与作用域布局
+├── cst-runtime.js              ← 声明与模块头/例化组合、token 校验
+├── cst-editor.js / cst-worker.js ← 编辑器异步排版
+├── vendor/verible/             ← 固定 Windows x64 解析器、来源与许可
+├── docs/formatter.md           ← 排版架构、边界和维护入口
 ├── format-cli.js               ← 复用 Ctrl+L 逻辑的只读检查/显式写入 CLI
 ├── rtl-parser.js               ← module/port/instance 纯解析层
 ├── vendor-metadata.js          ← Vivado XCI/BD 端口元数据与原语源码定位
@@ -55,7 +60,7 @@ Otter-FPGA-Toolkit/
 ```
 
 > **唯一入口**：自 2026-08-21 起，本仓库根目录同时承担开发、测试、GitHub 推送和 VSIX 发布，不再维护 `2-dev` / `1-release` 双副本。
-> **私密隔离**：凭据、SSH 私钥、迁移备份和测试 VSIX 不得放入本 Git 仓库。
+> **私密隔离**：凭据、SSH 私钥和迁移备份不得放入本 Git 仓库；测试 VSIX 放根目录并由 Git 忽略。
 
 ---
 
@@ -64,7 +69,7 @@ Otter-FPGA-Toolkit/
 | # | 功能 | 触发方式 | 实现位置 |
 |---|------|---------|----------------------|
 | 1 | 一键例化 | `Ctrl+1` | `generateInstance` 命令 → `genInst()` |
-| 2 | 代码排版 | `Ctrl+L` | `alignCode` 命令 → `doFmt()` |
+| 2 | 代码排版 | `Ctrl+L` | `alignCode` 命令 → `cst-editor` / `cst-runtime` |
 | 3 | 语法检查(iverilog) | 保存时自动 | `runIverilog()` — spawn `iverilog` |
 | 4 | 语法检查(xvlog) | 保存时自动 | `runXvlog()` — spawn `cmd /c xvlog.bat` |
 | 5 | 语法检查(ModelSim) | 保存时自动 | `runModelsim()` — spawn `cmd /c vlog.exe` |
@@ -88,7 +93,7 @@ activate()
 ├── 例化命令: generateInstance → genInst()
 │   ├── parseModule()     — 解析 module 声明
 │   └── extractComments() — 提取注释中的 section/端口声明行 (v2.1: 支持普通//注释+无参数模块)
-├── 排版命令: alignCode → doFmt()
+├── 排版命令: alignCode → cst-editor → cst-runtime
 │   ├── entry.tag === 'inst_port' → 例化端口对齐 (v2.1: 允许空连接)
 │   ├── entry.tag === 'inst_port_multi' → 跨行端口首行对齐 (v2.1 新增)
 │   └── 信号声明 → 关键字/位宽/信号名/注释对齐
@@ -117,7 +122,7 @@ activate()
 2. **iverilog 过滤** (v2.1) — 可配置忽略 `Unknown module` / `module not found` 类错误，适合单文件开发
 3. **xvlog 解析** — 用 `spawn('cmd', ['/c', xvlog, '-sv', file])`，正则匹配 `ERROR/WARNING/CRITICAL WARNING: [CODE] message [file:line]`
 4. **ModelSim 解析** — 正则匹配 `** Error/Warning: file(line): message`
-5. **排版注释格式** — 例化端口 `),// 注释`，信号声明 `,// 注释`（统一 `//` 后跟空格）
+5. **排版实现与边界** — 模块体使用 CST，模块头和例化保留既有 renderer；现行规则见 readme.md 和 docs/formatter.md。
 6. **诊断写入** — `diagColl.set(uri, ps)` 直接写入 VSCode 诊断集
 
 ---
@@ -207,10 +212,10 @@ activate()
 npm run check
 
 # 2. 需要用户安装验证时，输出到仓库根目录的测试包，使用独立文件名避免覆盖当前发布包
-npx.cmd -y @vscode/vsce package --out otter-fpga-toolkit-<version>-test-<commit>.vsix
+npx.cmd -y @vscode/vsce package --target win32-x64 --out otter-fpga-toolkit-<version>-test-<commit>.vsix
 
 # 3. 用户确认并授权发布后，更新 package.json 版本并生成最终发布包
-npx.cmd -y @vscode/vsce package
+npx.cmd -y @vscode/vsce package --target win32-x64
 
 # 4. 检查并提交明确的源码/元数据文件，然后通过 SSH 推送
 git status --short --branch
@@ -375,7 +380,7 @@ git push origin main
 
 ### 测试状态
 - 迁移前已执行：`node --check 2-dev/extension.js`
-- 迁移前已执行：`npx.cmd -y @vscode/vsce package` 生成测试 VSIX
+- 迁移前已执行：`npx.cmd -y @vscode/vsce package --target win32-x64` 生成测试 VSIX
 - 用户已确认测试通过；旧流程曾将 `2-dev` 同步到 `1-release` 后生成发布 VSIX、commit 并通过 SSH push
 
 ---
@@ -556,7 +561,7 @@ git push origin main
 7. **排版安全** — `function`/`endfunction`/`task`/`endtask` 内容不会被 Ctrl+L 修改
 8. **排版 tab** — `parseLine` 内部已将 tab 转空格再计算宽度
 9. **排版跨行** — `{...}` 多行拼接的端口，首行端口名参与对齐，中间行/末行不动
-10. **VSIX 打包** — 发布用 `npx.cmd -y @vscode/vsce package`，手动上传到 https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang
+10. **VSIX 打包** — 发布用 `npx.cmd -y @vscode/vsce package --target win32-x64`，手动上传到 https://marketplace.visualstudio.com/manage/publishers/otter-xiaoxiaoxuwang
 11. **GitHub** — repo: `lingshuncangqiong/otter-fpga-toolkit`，`origin` 是 SSH：`git@github.com:lingshuncangqiong/otter-fpga-toolkit.git`
 12. **activationEvents 警告** — VSCode 提示可删除，但 `vsce` 打包仍需保留，忽略即可
 13. **凭据** — GitHub 推送只使用现有 SSH 认证；不得使用旧 PAT 或把凭据写入 remote URL

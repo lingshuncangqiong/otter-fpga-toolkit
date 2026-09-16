@@ -14,7 +14,7 @@
 
 1. 执行与实际改动及风险匹配的检查。JavaScript 语法检查针对实际修改的文件使用 `node --check <file>`，行为变化按受影响功能选择测试；修改 JSON 后解析变更文件。纯文档只核对相关 diff 和引用。
 2. 测试 VSIX 与正式包统一存放在仓库根目录，以 `-test-<commit>` 后缀区分，避免覆盖当前正式发布包：
-   `npx.cmd -y @vscode/vsce package --out otter-fpga-toolkit-<version>-test-<commit>.vsix`
+   `npx.cmd -y @vscode/vsce package --target win32-x64 --out otter-fpga-toolkit-<version>-test-<commit>.vsix`
 3. 用户确认测试包并授权发布后，才可更新 `package.json` 版本、生成最终 `otter-fpga-toolkit-X.Y.Z.vsix`，并核对归档内容。
 4. 只提交预期的 tracked files；VSIX 由 Git 忽略。
 5. commit、push、版本升级和 Marketplace 发布须分别在明确授权范围内；一次授权可以覆盖具名动作序列，不为同一范围重复询问。

@@ -1,6 +1,6 @@
 *.vsix
 node_modules/
-/_formatter_lab/
+/_delete_pending/
 *.log
 *.pb
 a.out

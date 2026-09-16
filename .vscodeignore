@@ -1,6 +1,6 @@
 .vscode/**
 node_modules/**
-_formatter_lab/**
+_delete_pending/**
 .git/**
 .gitignore
 *.vsix
@@ -23,3 +23,5 @@ test/**
 **/*.pfx
 **/token.txt
 **/github_pat.txt
+
+docs/**

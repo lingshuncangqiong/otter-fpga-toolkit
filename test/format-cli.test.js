@@ -19,7 +19,7 @@ test('JSON 智能体接口返回稳定状态和退出码', t => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-format-json-'));
     t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));
     const filePath = path.join(tempDir, 'agent.sv');
-    fs.writeFileSync(filePath, 'wire a;// agent\n', 'utf8');
+    fs.writeFileSync(filePath, 'module agent;\nwire a;// agent\nendmodule\n', 'utf8');
     const run = args => {
         let stdout = '';
         let stderr = '';
@@ -80,26 +80,26 @@ test('行范围只改指定行，但列位置仍按完整所属声明组计算',
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-format-range-'));
     t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));
     const filePath = path.join(tempDir, 'range.v');
-    const original = 'wire a;// first\nwire [31:0] much_longer_name;// second\n';
+    const original = 'module demo;\nwire a;// first\nwire [31:0] much_longer_name;// second\nendmodule\n';
     fs.writeFileSync(filePath, original, 'utf8');
 
-    const result = formatFile(filePath, {mode: 'write', tabSize: 4, startLine: 1, endLine: 1});
-    assert.deepEqual(result.changedLines, [1]);
+    const result = formatFile(filePath, {mode: 'write', tabSize: 4, startLine: 2, endLine: 2});
+    assert.deepEqual(result.changedLines, [2]);
     const lines = fs.readFileSync(filePath, 'utf8').split('\n');
-    assert.notEqual(lines[0], 'wire a;// first');
-    assert.equal(lines[1], 'wire [31:0] much_longer_name;// second');
+    assert.notEqual(lines[1], 'wire a;// first');
+    assert.equal(lines[2], 'wire [31:0] much_longer_name;// second');
 });
 
 test('CLI只格式化选中组，长参数不影响它且保留混合换行', t => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'otter-format-groups-'));
     t.after(() => fs.rmSync(tempDir, {recursive: true, force: true}));
     const filePath = path.join(tempDir, 'groups.v');
-    const original = 'localparam integer P_BIG = REALLY_LONG_EXPRESSION + ANOTHER_LONG_TERM;\r\n\r\nreg a = 0;\nreg b = 0;\r\n';
+    const original = 'module demo;\nlocalparam integer P_BIG = REALLY_LONG_EXPRESSION + ANOTHER_LONG_TERM;\r\n\r\nreg a = 0;\nreg b = 0;\r\nendmodule\n';
     fs.writeFileSync(filePath, original);
-    formatFile(filePath, {mode: 'write', tabSize: 4, startLine: 3, endLine: 4});
+    formatFile(filePath, {mode: 'write', tabSize: 4, startLine: 4, endLine: 5});
     const actual = fs.readFileSync(filePath, 'utf8');
     assert.ok(actual.startsWith(original.split('reg a')[0]));
     assert.deepEqual(actual.match(/\r\n|\n/g), original.match(/\r\n|\n/g));
-    assert.ok(actual.split(/\r?\n/)[2].length < 45);
-    assert.equal(formatFile(filePath, {mode: 'check', tabSize: 4, startLine: 3, endLine: 4}).changed, false);
+    assert.ok(actual.split(/\r?\n/)[3].length < 45);
+    assert.equal(formatFile(filePath, {mode: 'check', tabSize: 4, startLine: 4, endLine: 5}).changed, false);
 });

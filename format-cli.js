@@ -24,7 +24,7 @@ function usage() {
         '  node format-cli.js --check [--json] [--tab-size N] [--start-line N --end-line N] <file>',
         '  node format-cli.js --write [--json] [--tab-size N] [--start-line N --end-line N] <file>',
         '',
-        'Line numbers are 1-based and inclusive. Alignment uses the complete module parameter/port region or local declaration group, even for a selected range.'
+        'Line numbers are 1-based and inclusive. Alignment uses the complete module header or module/generate declaration scope, even for a selected range.'
     ].join('\n');
 }
 
@@ -108,15 +108,17 @@ function formatFile(filePath, options, formatter = loadFormatter()) {
     if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) throw new Error(`file not found: ${absolutePath}`);
 
     const original = fs.readFileSync(absolutePath, 'utf8');
-    const {lines, endings} = splitText(original);
+    const bom = original.startsWith('\uFEFF') ? '\uFEFF' : '';
+    const {lines, endings} = splitText(original.slice(bom.length));
     const first = options.startLine === null ? 0 : options.startLine - 1;
     const last = options.endLine === null ? lines.length - 1 : options.endLine - 1;
     if (first >= lines.length || last >= lines.length) throw new Error(`line range exceeds file length ${lines.length}`);
 
     const result = formatter.formatLineRange(lines, options.tabSize, first, last);
-    const formatted = joinText(result.lines, endings);
+    const formatted = bom + joinText(result.lines, endings);
     if (options.mode === 'write' && formatted !== original) fs.writeFileSync(absolutePath, formatted, 'utf8');
-    return {absolutePath, changedLines: result.changes.map(change => change.line + 1), changed: formatted !== original};
+    return {absolutePath, changedLines: result.changes.map(change => change.line + 1), changed: formatted !== original,
+        skipped: result.skipped || []};
 }
 
 function main(argv = process.argv.slice(2), io = {stdout: process.stdout, stderr: process.stderr}) {
@@ -140,10 +142,12 @@ function main(argv = process.argv.slice(2), io = {stdout: process.stdout, stderr
                 file: result.absolutePath,
                 changed: result.changed,
                 changedLines: result.changedLines,
+                skipped: result.skipped,
                 wrote: options.mode === 'write' && result.changed
             })}\n`);
             return formattingRequired ? 1 : 0;
         }
+        if (result.skipped.length) stderr.write(`WARN preserved ${result.skipped.length} unsupported declarations\n`);
         if (options.mode === 'check' && result.changed) {
             stderr.write(`FAIL formatting required: ${result.absolutePath} (${result.changedLines.length} lines)\n`);
             return 1;
