@@ -530,6 +530,53 @@ test('声明分区遇到 generate、预处理和新 module 不跨界计算列宽
     assert.deepEqual(fmt(result),result);
 });
 
+test('显式参数区跨说明分组对齐中等长度表达式与有符号常量', () => {
+    const source = [
+        'module pixel;',
+        '/***************parameter*************/',
+        'localparam integer P_TOTAL_DATA_DW = P_CH_NUM * P_DATA_DW; // data',
+        'localparam integer P_TOTAL_GAIN_DW = P_CH_NUM * P_GAIN_DW; // gain',
+        '',
+        '// 运算位宽与裁剪边界',
+        'localparam integer P_SUM_DW = P_MULT_DW - P_GAIN_FRAC_DW + P_OFFSET_DW + 2; // sum',
+        "localparam [P_DATA_DW-1:0] P_DATA_MAX = {P_DATA_DW{1'b1}}; // maximum",
+        "localparam signed [P_SUM_DW-1:0] P_CLAMP_MAX = $signed({{(P_SUM_DW-P_DATA_DW){1'b0}}, P_DATA_MAX}); // clamp",
+        '/***************reg*******************/',
+        'reg r_valid = 0;',
+        'endmodule'
+    ];
+    const fmt = lines => formatLineRange(lines,4,0,lines.length-1).lines;
+    const result=fmt(source), declarations=[2,3,6,7,8];
+    for(const col of [l=>l.indexOf('='),l=>l.indexOf(';'),l=>l.indexOf('//')]){
+        assert.equal(new Set(declarations.map(i=>col(result[i]))).size,1);
+    }
+    assert.equal(result[4],source[4]);
+    assert.equal(result[5],source[5]);
+    assert.equal(formatLineRange(source,4,6,6).lines[6],result[6]);
+    assert.deepEqual(fmt(result),result);
+    assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
+});
+
+test('超长初值保持等号对齐但不拉远其它行的分号，超长声明头独立排版', () => {
+    const value='P_VERY_LONG_TERM + '.repeat(24)+'P_END';
+    const source=[
+        'localparam integer P_SHORT = 1; // short',
+        'localparam integer P_MEDIUM = P_INPUT_WIDTH + P_OUTPUT_WIDTH + 1; // medium',
+        `localparam integer P_LONG = ${value}; // long`,
+        `localparam integer P_${'VERY_LONG_NAME_'.repeat(7)} = 0; // name`
+    ];
+    const fmt = lines => formatLineRange(lines,4,0,lines.length-1).lines;
+    const result=fmt(source);
+    const baseline=fmt(source.slice(0,2));
+    assert.deepEqual(result.slice(0,2),baseline);
+    assert.equal(result[0].indexOf('='),result[2].indexOf('='));
+    assert.ok(result[2].includes(value+' ;'));
+    assert.equal(result[2].indexOf('//')-result[2].lastIndexOf('P_END'),7);
+    assert.equal(result.length,source.length);
+    assert.deepEqual(fmt(result),result);
+    assert.equal(result.join('').replace(/\s/g,''),source.join('').replace(/\s/g,''));
+});
+
 test('多模块和同缩进的不同实例分别对齐，不改注释内的伪声明', () => {
     const source = [
         'module a;',

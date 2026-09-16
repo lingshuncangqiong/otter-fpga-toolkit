@@ -499,22 +499,29 @@ function doFmt(entry, cols, orig){
     return (r+cmSig).trimEnd();
 }
 
+function isLongDeclarationHead(entry){
+    return (entry.width||'').length>64||
+        entry.name.length+(entry.unpacked?1+entry.unpacked.length:0)>64;
+}
+
 function computeDeclarationColumns(entries,tab,fullWidth=false){
-    // 端口按实际长度对齐，保持整行；其它局部声明保留防止过度撑宽的填充上限。
-    const span=(length,limit)=>fullWidth?length:Math.min(length,limit);
+    // 普通字段按实际长度对齐，不再把超过固定列宽的字段挤出队列。
+    // 极长声明头独立排版；极长初值保留左侧对齐，但不参与公共分号列计算。
+    let aligned=fullWidth?entries:entries.filter(p=>!isLongDeclarationHead(p));
+    if(!aligned.length)aligned=entries;
     let mt=0,mn=0,me=0,he=0,cp=0;
     const indent=entries[0].ind.length;
-    for(const p of entries){
+    for(const p of aligned){
         mt=Math.max(mt,p.type.length);
-        mn=Math.max(mn,span(p.name.length+(p.unpacked?1+p.unpacked.length:0),40));
-        if(p.hasEq){he=1;me=Math.max(me,span(p.eq.length,24));}
-        cp=Math.max(cp,span((p.cl||'').length,29));
+        mn=Math.max(mn,p.name.length+(p.unpacked?1+p.unpacked.length:0));
+        if(p.hasEq){he=1;if(fullWidth||p.eq.length<=96)me=Math.max(me,p.eq.length);}
+        cp=Math.max(cp,(p.cl||'').length);
     }
     const bc=padToTab(indent+mt+1,tab);
     let mb=0;
-    for(const p of entries){
+    for(const p of aligned){
         const width=p.cl?'['+p.cl+' '.repeat(Math.max(0,cp-p.cl.length))+':'+p.rr+']':p.width;
-        mb=Math.max(mb,span((width||'').length,32));
+        mb=Math.max(mb,(width||'').length);
     }
     const nc=mb?padToTab(bc+mb+1,tab):bc;
     const ec=padToTab(nc+mn+1,tab);
@@ -563,19 +570,20 @@ function formatLineRange(lines,tabValue,startLine,endLine){
 
     const kindOf=p=>p.tag?'instance':/^(parameter|localparam)\b/.test(p.type)?'parameter':
         /^(input|output|inout)\b/.test(p.type)?'port':p.type==='genvar'?'genvar':'signal';
-    // 显式 reg/wire 分区内，空行和说明注释只分隔语义，不重置字段列宽。
+    // 显式 parameter/reg/wire 分区内，空行和说明注释只分隔语义，不重置字段列宽。
     // 一旦出现其它代码、预处理或缩进变化就结束区域，避免跨 generate/模块作用域。
     const sectionByLine=new Map();
     let section;
     for(let i=0;i<lines.length;i++){
         const marker=lines[i].match(/^\s*\/\*{3,}\s*(\w+)\s*\*{3,}\/\s*$/);
         if(marker){
-            section=/^(reg|wire)$/.test(marker[1])?{id:i,name:marker[1],indent:null}:undefined;
+            section=/^(parameter|reg|wire)$/.test(marker[1])?{id:i,name:marker[1],indent:null}:undefined;
             continue;
         }
         if(!section||!codeLines[i].trim())continue;
         const entry=byLine.get(i);
-        const matches=entry&&!entry.tag&&(section.name==='reg'
+        const matches=entry&&!entry.tag&&(section.name==='parameter'
+            ?/^(parameter|localparam)\b/.test(entry.type):section.name==='reg'
             ?/^(reg|logic|bit|int|integer)\b/.test(entry.type)
             :/^(wire|tri|wand|wor)\b/.test(entry.type));
         if(!matches||(section.indent!==null&&entry.ind.length!==section.indent)){
@@ -637,12 +645,14 @@ function formatLineRange(lines,tabValue,startLine,endLine){
             ?computeInstanceColumns(current.entries,tab).get(current.indent)
             :computeDeclarationColumns(current.entries,tab,current.kind==='port');
         for(const entry of current.entries){
-            columnsByLine.set(entry.i,cols);
+            const entryCols=current.kind!=='instance'&&current.kind!=='port'&&isLongDeclarationHead(entry)
+                ?computeDeclarationColumns([entry],tab,true):cols;
+            columnsByLine.set(entry.i,entryCols);
             const content=entry.continuationLines;
             if(!content||!content.length)continue;
             const baseColumn=Math.min(...content.map(item=>item.column));
             for(const item of content){
-                declarationContinuations.set(item.line,cols.vc+item.column-baseColumn);
+                declarationContinuations.set(item.line,entryCols.vc+item.column-baseColumn);
             }
         }
     }
