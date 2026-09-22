@@ -518,15 +518,20 @@ test('manifest 保留命令和快捷键，并贡献层次树及提示设置', ()
             'verilog-instantiate.xvlogLint',
             'verilog-instantiate.alignCode',
             'verilog-instantiate.showHierarchy',
-            'verilog-instantiate.refreshHierarchy'
+            'verilog-instantiate.refreshHierarchy',
+            'otter-fpga-toolkit.previewWaveform',
+            'otter-fpga-toolkit.previewWaveformPanel',
+            'otter-fpga-toolkit.exportWaveformSvg'
         ]
     );
-    assert.ok(manifest.contributes.commands.slice(0, 4).every(item => item.enablement));
+    assert.ok(manifest.contributes.commands.filter(item => item.command !== 'verilog-instantiate.refreshHierarchy').every(item => item.enablement));
     assert.equal(manifest.contributes.commands[3].icon, '$(type-hierarchy)');
     assert.equal(manifest.contributes.commands[4].icon, '$(refresh)');
+    assert.equal(manifest.contributes.commands[5].icon, '$(graph)');
+    assert.equal(manifest.contributes.commands.find(item => item.command === 'otter-fpga-toolkit.exportWaveformSvg').icon, '$(file-media)');
     assert.deepEqual(
         manifest.contributes.keybindings.map(item => item.key),
-        ['ctrl+shift+i', 'ctrl+1', 'ctrl+numpad1', 'ctrl+l']
+        ['ctrl+shift+i', 'ctrl+1', 'ctrl+numpad1', 'ctrl+l', 'alt+w']
     );
     assert.deepEqual(
         manifest.contributes.configuration.properties['verilogInstantiate.tabSize'],
@@ -562,6 +567,11 @@ test('manifest 保留命令和快捷键，并贡献层次树及提示设置', ()
         'verilog-instantiate.showHierarchy'
     );
     assert.equal(manifest.contributes.menus['editor/title'][0].group, 'navigation@9');
+    assert.equal(
+        manifest.contributes.menus['editor/title'][1].command,
+        'otter-fpga-toolkit.previewWaveform'
+    );
+    assert.equal(manifest.contributes.menus['editor/title'][1].group, 'navigation@10');
     assert.equal(manifest.contributes.menus['view/title'][0].when, 'view == otterFpgaHierarchy');
 });
 

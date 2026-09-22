@@ -43,6 +43,16 @@ npx.cmd -y @vscode/vsce package --target win32-x64 --out otter-fpga-toolkit-<ver
 
 ## 使用说明
 
+### WaveDrom 注释预览（测试功能）
+
+在Verilog/SystemVerilog注释中使用 `// ```wavedrom` 到 `// ``` ` 围栏，内部为WaveDrom JSON/JSON5；Markdown中的同名围栏也可识别。
+
+- 点击块上方“查看波形（就地浮层）”，或光标位于块内时按`Alt+W`，在源码附近查看；`Esc`关闭，源码和编辑区布局不变。
+- 浮层中的“打开大图”是可选独立面板，支持缩放；“导出SVG”始终对应该浮层的文件与波形块。
+- 长图使用插件临时图片缓存，避免过长SVG被悬浮提示截断；不在RTL工程内落预览文件，扩展退出时清理缓存。
+- 使用普通VS Code Hover API，不是源码行间折叠编辑器；不启用实验API，发布版本号仍为2.1.19。测试包确认后再独立决定正式发布。
+- 注释图是设计示意，除非另有真实trace来源，渲染成功不代表仿真或时序验证通过。
+
 ### 一键例化 `Ctrl+1`
 
 1. 光标放在 Verilog 文件中（包含 module 声明）

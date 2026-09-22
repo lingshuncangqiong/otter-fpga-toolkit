@@ -22,7 +22,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check extension.js && node --check cst-layout.js && node --check cst-runtime.js && node --check cst-editor.js && node --check cst-worker.js && node --check format-cli.js && npm test",
+    "check": "node --check extension.js && node --check cst-layout.js && node --check cst-runtime.js && node --check cst-editor.js && node --check cst-worker.js && node --check format-cli.js && node --check wavedrom-parser.js && node --check wavedrom-service.js && node --check wavedrom-webview.js && npm test",
     "format": "node format-cli.js"
   },
   "activationEvents": [
@@ -31,7 +31,10 @@
     "onLanguage:sdc",
     "onLanguage:xdc",
     "onLanguage:cst",
-    "onCommand:otter-fpga-toolkit.formatFile"
+    "onLanguage:markdown",
+    "onCommand:otter-fpga-toolkit.formatFile",
+    "onCommand:otter-fpga-toolkit.previewWaveform",
+    "onCommand:otter-fpga-toolkit.exportWaveformSvg"
   ],
   "contributes": {
     "languages": [
@@ -143,6 +146,23 @@
         "command": "verilog-instantiate.refreshHierarchy",
         "title": "Verilog: 刷新模块层次",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "otter-fpga-toolkit.previewWaveform",
+        "title": "Waveform: 就地查看时序图 (WaveDrom)",
+        "icon": "$(graph)",
+        "enablement": "editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown"
+      },
+      {
+        "command": "otter-fpga-toolkit.previewWaveformPanel",
+        "title": "Waveform: 打开时序图大图面板",
+        "enablement": "editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown"
+      },
+      {
+        "command": "otter-fpga-toolkit.exportWaveformSvg",
+        "title": "Waveform: 导出时序图为 SVG",
+        "icon": "$(file-media)",
+        "enablement": "editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown"
       }
     ],
     "keybindings": [
@@ -165,6 +185,11 @@
         "command": "verilog-instantiate.alignCode",
         "key": "ctrl+l",
         "when": "editorLangId == verilog || editorLangId == systemverilog"
+      },
+      {
+        "command": "otter-fpga-toolkit.previewWaveform",
+        "key": "alt+w",
+        "when": "editorTextFocus && (editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown)"
       }
     ],
     "viewsContainers": {
@@ -196,6 +221,11 @@
           "command": "verilog-instantiate.showHierarchy",
           "when": "resourceLangId == verilog || resourceLangId == systemverilog",
           "group": "navigation@9"
+        },
+        {
+          "command": "otter-fpga-toolkit.previewWaveform",
+          "when": "resourceLangId == verilog || resourceLangId == systemverilog || resourceLangId == markdown",
+          "group": "navigation@10"
         }
       ],
       "view/title": [

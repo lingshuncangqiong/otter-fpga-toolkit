@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const {registerWorkspaceFeatures} = require('./workspace-features');
 const {maskNonCode,parseRtlDocument} = require('./rtl-parser');
+const {registerWaveDromFeatures} = require('./wavedrom-webview');
 
 function padToTab(c,t){return Math.ceil(c/t)*t;}
 function normalizeTabSize(value){const n=Number(value);if(!Number.isFinite(n))return 4;return Math.min(16,Math.max(1,Math.trunc(n)));}
@@ -131,6 +132,7 @@ function activate(context) {
     const diagColl = vscode.languages.createDiagnosticCollection('verilog-xvlog');
     context.subscriptions.push(diagColl);
     registerWorkspaceFeatures(context,findDecl,findXvlog);
+    registerWaveDromFeatures(context);
 
     //===== 例化 =====
     context.subscriptions.push(vscode.commands.registerCommand('verilog-instantiate.generateInstance', async () => {
