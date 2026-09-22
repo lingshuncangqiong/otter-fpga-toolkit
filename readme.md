@@ -2,6 +2,13 @@
 
 > 小水獭的 FPGA/Verilog 开发利器，集成语法检查、一键例化、代码排版、高亮、端口方向提示、跨文件跳转和模块层次树
 
+## 2.1.20 更新
+
+- 新增 WaveDrom 注释时序图：点击注释入口或按 `Alt+W`，默认与源码并排查看，可切换独立页签。
+- 支持适应宽度、查看全图、缩放、滚动、拖动与点击信号定位，保留 WaveDrom 原始字体和配色。
+- 预览在内存中完成，不生成临时图片；只有显式导出才保存 SVG，兼容普通 VS Code 扩展 API。
+- 此版本提供 **Windows x64** 安装包；RTL Skill 示例与注释规则在独立 Skills 仓库维护。
+
 ## 2.1.19 更新
 
 - 模块体采用CST声明排版，跨分区统一 localparam/reg/wire/genvar 列；数组维度与范围冒号按语法结构处理。
@@ -21,6 +28,7 @@
 | 代码补全 | 输入提示 | 25+ 模板 (module/always/case/fsm) + 当前文件信号名 |
 | 参数/端口提示 | 自动 | 在 named connection 的括号内显示 `param` / `input` / `output` / `inout`，不修改 RTL 文本 |
 | 模块层次树 | 编辑器右上角层次图标 | 点击后自动打开底部 `Otter FPGA` Panel，只展开当前 module |
+| WaveDrom 时序图 | 注释入口 / `Alt+W` | 默认并排预览，可独立查看、缩放及显式导出 SVG |
 
 ## 安装方法
 
@@ -43,7 +51,7 @@ npx.cmd -y @vscode/vsce package --target win32-x64 --out otter-fpga-toolkit-<ver
 
 ## 使用说明
 
-### WaveDrom 注释预览（测试功能）
+### WaveDrom 注释预览
 
 在Verilog/SystemVerilog注释中使用 `// ```wavedrom` 到 `// ``` ` 围栏，内部为WaveDrom JSON/JSON5；Markdown中的同名围栏也可识别。
 
@@ -52,7 +60,7 @@ npx.cmd -y @vscode/vsce package --target win32-x64 --out otter-fpga-toolkit-<ver
 - 默认按宽度缩小超宽图，不自动放大小图；“查看全图”同时适配宽高，“1:1”恢复原始大小。放大后用滚动条/拖动查看完整图，Ctrl/Cmd+滚轮以鼠标位置缩放；编辑同一图时保留缩放和视口。
 - 绘图区保留WaveDrom原始字体、线条和配色，白色图纸与编辑器深浅主题分开；只让工具栏跟随编辑器主题，避免重涂符号导致黑线不可见或数据文字失去对比。
 - 预览HTML/SVG全部在内存处理，不在工程或系统临时目录生成图片；只有明确导出并选择保存位置才写SVG文件。
-- 使用普通Webview与Hover API，不是源码行间折叠编辑器；不启用实验API，发布版本号仍为2.1.19。测试包确认后再独立决定正式发布。
+- 使用普通Webview与Hover API，不是源码行间折叠编辑器；不启用实验API。
 - 注释图是设计示意，除非另有真实trace来源，渲染成功不代表仿真或时序验证通过。
 
 ### 一键例化 `Ctrl+1`
