@@ -37,6 +37,7 @@ button:hover{background:var(--vscode-button-secondaryHoverBackground,#494d53)} b
 </style></head><body>
 <div class="toolbar"><strong>时序图</strong><span id="lineBadge"></span><span class="spacer"></span>
 <button id="btnSide" title="源码与波形并排查看">并排查看</button>
+<button id="btnStandalone" title="移回源码所在编辑区，以独立页签查看更大的波形">独立查看</button>
 <button id="btnFit">适应宽度</button><button id="btnFitAll">查看全图</button><button id="btnReset">1:1</button>
 <button id="btnZoomOut" aria-label="缩小">−</button><span id="scaleLabel">100%</span><button id="btnZoomIn" aria-label="放大">＋</button>
 <button id="btnCopy">复制 SVG</button><button id="btnExport">导出 SVG</button></div>
@@ -116,6 +117,7 @@ document.getElementById('btnZoomOut').onclick=()=>zoom(scale/1.2);
 document.getElementById('btnCopy').onclick=()=>post('copySvg');
 document.getElementById('btnExport').onclick=()=>post('exportSvg');
 document.getElementById('btnSide').onclick=()=>post('showBeside');
+document.getElementById('btnStandalone').onclick=()=>post('showStandalone');
 viewer.addEventListener('wheel',event=>{
     if(!event.ctrlKey&&!event.metaKey)return;
     event.preventDefault();const rect=viewer.getBoundingClientRect();

@@ -149,13 +149,18 @@
       },
       {
         "command": "otter-fpga-toolkit.previewWaveform",
-        "title": "Waveform: 查看时序图 (WaveDrom)",
+        "title": "Waveform: 并排查看时序图 (WaveDrom)",
         "icon": "$(graph)",
         "enablement": "editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown"
       },
       {
         "command": "otter-fpga-toolkit.previewWaveformPanel",
         "title": "Waveform: 并排查看时序图",
+        "enablement": "editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown"
+      },
+      {
+        "command": "otter-fpga-toolkit.previewWaveformStandalone",
+        "title": "Waveform: 独立查看时序图",
         "enablement": "editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown"
       },
       {

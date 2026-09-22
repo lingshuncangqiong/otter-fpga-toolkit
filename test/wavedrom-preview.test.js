@@ -90,17 +90,21 @@ const context = {subscriptions: []};
 preview.registerWaveDromFeatures(context);
 test.after(() => context.subscriptions.forEach(item => item.dispose()));
 
-test('CodeLens opens in the source group, with explicit side-by-side available', async () => {
+test('CodeLens defaults to side-by-side and can switch to standalone', async () => {
     const doc = document('wave-a.sv', ['first', 'second']);
     editor(doc);
     const lens = lensProvider.provideCodeLenses(doc)[2];
     assert.deepEqual(lens.command.arguments, [doc.uri.toString(), 3]);
     await commands.get(lens.command.command)(...lens.command.arguments);
     assert.equal(panelCount, 1);
-    assert.equal(lastPanel.viewColumn, 1);
+    assert.equal(lastPanel.viewColumn, vscode.ViewColumn.Beside);
     await receiver({command:'ready'});
+    await receiver({command:'showStandalone', revision:preview.__test.currentRevision()});
+    assert.equal(lastPanel.viewColumn, 1);
     await receiver({command:'showBeside', revision:preview.__test.currentRevision()});
     assert.equal(lastPanel.viewColumn, vscode.ViewColumn.Beside);
+    await commands.get('otter-fpga-toolkit.previewWaveformStandalone')(doc.uri.toString(),3);
+    assert.equal(lastPanel.viewColumn,1);
 });
 
 test('hover preview uses pure in-memory data and commands keep the hovered document and block', () => {

@@ -521,6 +521,7 @@ test('manifest 保留命令和快捷键，并贡献层次树及提示设置', ()
             'verilog-instantiate.refreshHierarchy',
             'otter-fpga-toolkit.previewWaveform',
             'otter-fpga-toolkit.previewWaveformPanel',
+            'otter-fpga-toolkit.previewWaveformStandalone',
             'otter-fpga-toolkit.exportWaveformSvg'
         ]
     );

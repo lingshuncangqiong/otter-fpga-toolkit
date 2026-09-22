@@ -174,10 +174,10 @@ function createWaveformHover(document, block) {
     const md = new vscode.MarkdownString();
     if (!parsed.ok) md.appendText('WaveDrom 解析提示：' + parsed.error);
     else {
-        md.isTrusted = {enabledCommands:['otter-fpga-toolkit.previewWaveform','otter-fpga-toolkit.previewWaveformPanel','otter-fpga-toolkit.exportWaveformSvg']};
+        md.isTrusted = {enabledCommands:['otter-fpga-toolkit.previewWaveform','otter-fpga-toolkit.previewWaveformStandalone','otter-fpga-toolkit.exportWaveformSvg']};
         md.appendMarkdown(`**WaveDrom 时序波形** · Line ${block.startLine + 1} - ${block.endLine + 1}\n\n`);
-        md.appendMarkdown(`[查看波形 (Alt+W)](${commandLink('otter-fpga-toolkit.previewWaveform',document,block)}) · ` +
-            `[并排查看](${commandLink('otter-fpga-toolkit.previewWaveformPanel',document,block)}) · ` +
+        md.appendMarkdown(`[并排查看 (Alt+W)](${commandLink('otter-fpga-toolkit.previewWaveform',document,block)}) · ` +
+            `[独立查看](${commandLink('otter-fpga-toolkit.previewWaveformStandalone',document,block)}) · ` +
             `[导出 SVG](${commandLink('otter-fpga-toolkit.exportWaveformSvg',document,block)})`);
     }
     return new vscode.Hover(md,new vscode.Range(block.startLine,0,block.endLine,document.lineAt(block.endLine).text.length));
@@ -245,7 +245,9 @@ async function openWaveformPanel(context, doc, line, beside = true) {
     sourceColumn = (matchingEditor && matchingEditor.viewColumn) || sourceColumn || vscode.ViewColumn.One;
 
     if (currentPanel) {
-        currentPanel.reveal(beside ? vscode.ViewColumn.Beside : (currentPanel.viewColumn || sourceColumn));
+        const parallelColumn = currentPanel.viewColumn && currentPanel.viewColumn !== sourceColumn
+            ? currentPanel.viewColumn : vscode.ViewColumn.Beside;
+        currentPanel.reveal(beside ? parallelColumn : sourceColumn);
         updatePreviewContent(document, currentLine);
         return;
     }
@@ -280,6 +282,10 @@ async function openWaveformPanel(context, doc, line, beside = true) {
             return;
         }
         if (msg.revision !== revision) return;
+        if (msg.command === 'showStandalone') {
+            panel.reveal(sourceColumn);
+            return;
+        }
         if (msg.command === 'showBeside') {
             if (panel.viewColumn === sourceColumn || !panel.viewColumn) panel.reveal(vscode.ViewColumn.Beside);
             if (previewDocument) await vscode.window.showTextDocument(previewDocument, {viewColumn:sourceColumn,preserveFocus:true});
@@ -322,13 +328,13 @@ async function openWaveformPanel(context, doc, line, beside = true) {
 }
 
 /**
- * 默认在当前编辑区域打开波形页签；并排查看是独立选择
+ * 默认并排查看源码与波形；独立查看是可选操作
  * @param {vscode.ExtensionContext} context
  * @param {vscode.TextDocument} [ref]
  * @param {number} [line]
  */
 async function openWaveformPreview(context, ref, line) {
-    return openWaveformPanel(context, ref, line, false);
+    return openWaveformPanel(context, ref, line);
 }
 
 /**
@@ -396,7 +402,7 @@ function registerWaveDromFeatures(context) {
         }
     }));
 
-    // 2. CodeLens：默认当前编辑区域打开，保留可选并排命令
+    // 2. CodeLens：默认并排打开
     context.subscriptions.push(vscode.languages.registerCodeLensProvider(supportedLangs, {
         provideCodeLenses(document) {
             const blocks = findAllWaveDromBlocks(document);
@@ -404,7 +410,7 @@ function registerWaveDromFeatures(context) {
             for (const block of blocks) {
                 const range = new vscode.Range(block.startLine, 0, block.startLine, 0);
                 lenses.push(new vscode.CodeLens(range, {
-                    title: '$(graph) 查看时序图 (Alt+W)',
+                    title: '$(graph) 并排查看时序图 (Alt+W)',
                     command: 'otter-fpga-toolkit.previewWaveform',
                     arguments: [document.uri.toString(), block.startLine]
                 }));
@@ -418,13 +424,17 @@ function registerWaveDromFeatures(context) {
         }
     }));
 
-    // 3. 默认同区域；显式panel命令并排打开
+    // 3. 默认并排；独立页签是可选入口
     context.subscriptions.push(vscode.commands.registerCommand('otter-fpga-toolkit.previewWaveform', (doc, line) => {
-        return openWaveformPanel(context, doc, line, false);
+        return openWaveformPanel(context, doc, line);
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('otter-fpga-toolkit.previewWaveformPanel', (doc, line) => {
         return openWaveformPanel(context, doc, line);
+    }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('otter-fpga-toolkit.previewWaveformStandalone', (doc, line) => {
+        return openWaveformPanel(context, doc, line, false);
     }));
 
     context.subscriptions.push(vscode.commands.registerCommand('otter-fpga-toolkit.exportWaveformSvg', (doc, line) => {
