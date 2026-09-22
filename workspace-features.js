@@ -319,7 +319,7 @@ class PortDirectionInlayProvider {
     }
 
     async provideInlayHints(document, range, token) {
-        const enabled = vscode.workspace.getConfiguration('verilogInstantiate').get('enablePortDirectionHints', true);
+        const enabled = vscode.workspace.getConfiguration('verilogInstantiate').get('enablePortDirectionHints', false);
         if (!enabled) return [];
 
         const structure = parseRtlDocument(document.getText());

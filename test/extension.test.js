@@ -545,7 +545,7 @@ test('manifest 保留命令和快捷键，并贡献层次树及提示设置', ()
     );
     assert.equal(
         manifest.contributes.configuration.properties['verilogInstantiate.enablePortDirectionHints'].default,
-        true
+        false
     );
     assert.equal(
         manifest.contributes.configuration.properties['verilogInstantiate.workspaceIndexMaxFiles'].default,

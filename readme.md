@@ -47,10 +47,12 @@ npx.cmd -y @vscode/vsce package --target win32-x64 --out otter-fpga-toolkit-<ver
 
 在Verilog/SystemVerilog注释中使用 `// ```wavedrom` 到 `// ``` ` 围栏，内部为WaveDrom JSON/JSON5；Markdown中的同名围栏也可识别。
 
-- 点击块上方“查看波形（就地浮层）”，或光标位于块内时按`Alt+W`，在源码附近查看；`Esc`关闭，源码和编辑区布局不变。
-- 浮层中的“打开大图”是可选独立面板，支持缩放；“导出SVG”始终对应该浮层的文件与波形块。
-- 长图使用插件临时图片缓存，避免过长SVG被悬浮提示截断；不在RTL工程内落预览文件，扩展退出时清理缓存。
-- 使用普通VS Code Hover API，不是源码行间折叠编辑器；不启用实验API，发布版本号仍为2.1.19。测试包确认后再独立决定正式发布。
+- 点击块上方“查看时序图”，或光标位于块内时按`Alt+W`，默认在当前编辑区域打开波形页签；悬停只显示简短操作入口，不自动弹出大图。
+- 用“并排查看”同时查看源码与波形；点击图中的信号名可定位相应端口或声明，找不到时明确提示，不跳到无关活动文件。
+- 默认按宽度缩小超宽图，不自动放大小图；“查看全图”同时适配宽高，“1:1”恢复原始大小。放大后用滚动条/拖动查看完整图，Ctrl/Cmd+滚轮以鼠标位置缩放；编辑同一图时保留缩放和视口。
+- 绘图区保留WaveDrom原始字体、线条和配色，白色图纸与编辑器深浅主题分开；只让工具栏跟随编辑器主题，避免重涂符号导致黑线不可见或数据文字失去对比。
+- 预览HTML/SVG全部在内存处理，不在工程或系统临时目录生成图片；只有明确导出并选择保存位置才写SVG文件。
+- 使用普通Webview与Hover API，不是源码行间折叠编辑器；不启用实验API，发布版本号仍为2.1.19。测试包确认后再独立决定正式发布。
 - 注释图是设计示意，除非另有真实trace来源，渲染成功不代表仿真或时序验证通过。
 
 ### 一键例化 `Ctrl+1`
@@ -179,7 +181,7 @@ Xilinx 原语方向会根据 `verilogInstantiate.xvlogPath` 定位对应 Vivado 
 | `verilogInstantiate.lintOnOpen` | `false` | 打开文件时自动检查 |
 | `verilogInstantiate.lintOnActiveEditorChange` | `false` | 切换到 Verilog/SystemVerilog 编辑器时自动检查 |
 | `verilogInstantiate.enableCompletion` | `true` | 启用代码补全 |
-| `verilogInstantiate.enablePortDirectionHints` | `true` | 显示实例参数和端口的 param/input/output/inout 内联提示 |
+| `verilogInstantiate.enablePortDirectionHints` | `false` | 显示实例参数和端口的 param/input/output/inout 内联提示 (默认关闭，可在设置中开启) |
 | `verilogInstantiate.workspaceIndexMaxFiles` | `5000` | 工作区最多索引的 RTL 文件数 |
 | `verilogInstantiate.workspaceIndexMaxFileSizeKB` | `2048` | 未打开 RTL 文件的索引大小上限（KB） |
 | `verilogInstantiate.workspaceIndexExclude` | Vivado/工具生成目录 glob | 工作区索引排除规则 |

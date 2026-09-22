@@ -22,7 +22,7 @@
   },
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node --check extension.js && node --check cst-layout.js && node --check cst-runtime.js && node --check cst-editor.js && node --check cst-worker.js && node --check format-cli.js && node --check wavedrom-parser.js && node --check wavedrom-service.js && node --check wavedrom-webview.js && npm test",
+    "check": "node --check extension.js && node --check cst-layout.js && node --check cst-runtime.js && node --check cst-editor.js && node --check cst-worker.js && node --check format-cli.js && node --check wavedrom-parser.js && node --check wavedrom-service.js && node --check wavedrom-webview.js && node --check wavedrom-view.js && npm test",
     "format": "node format-cli.js"
   },
   "activationEvents": [
@@ -149,13 +149,13 @@
       },
       {
         "command": "otter-fpga-toolkit.previewWaveform",
-        "title": "Waveform: 就地查看时序图 (WaveDrom)",
+        "title": "Waveform: 查看时序图 (WaveDrom)",
         "icon": "$(graph)",
         "enablement": "editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown"
       },
       {
         "command": "otter-fpga-toolkit.previewWaveformPanel",
-        "title": "Waveform: 打开时序图大图面板",
+        "title": "Waveform: 并排查看时序图",
         "enablement": "editorLangId == verilog || editorLangId == systemverilog || editorLangId == markdown"
       },
       {
@@ -280,8 +280,8 @@
         },
         "verilogInstantiate.enablePortDirectionHints": {
           "type": "boolean",
-          "default": true,
-          "description": "在 named parameter/port connection 前显示 param/input/output/inout 内联提示"
+          "default": false,
+          "description": "在 named parameter/port connection 前显示 param/input/output/inout 内联提示 (默认关闭)"
         },
         "verilogInstantiate.workspaceIndexMaxFiles": {
           "type": "integer",

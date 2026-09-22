@@ -102,7 +102,12 @@ const vscodeMock = {
     },
     workspace: {
         getConfiguration() {
-            return {get(_key, fallback) { return fallback; }};
+            return {
+                get(key, fallback) {
+                    if (key === 'enablePortDirectionHints') return true;
+                    return fallback;
+                }
+            };
         },
         createFileSystemWatcher() {
             return {
@@ -427,4 +432,23 @@ test('input/output/inout 方向提示使用相同显示宽度', () => {
     assert.deepEqual(labels, ['input\u00a0', 'output', 'inout\u00a0']);
     assert.ok(labels.every(label => label.length === 6));
     assert.equal(features.formatParameterHint(), 'param\u00a0');
+});
+
+test('enablePortDirectionHints 为 false 时不提供 Inlay Hints', async () => {
+    const document = createDocument(TOP_SOURCE);
+    const {index} = createIndex();
+    const provider = new features.PortDirectionInlayProvider({async get() { return index; }});
+    const origGetConfig = vscodeMock.workspace.getConfiguration;
+    vscodeMock.workspace.getConfiguration = () => ({ get: () => false });
+    try {
+        const hints = await provider.provideInlayHints(
+            document,
+            new Range(new Position(0, 0), new Position(99, 0)),
+            {isCancellationRequested: false}
+        );
+        assert.deepEqual(hints, []);
+    } finally {
+        vscodeMock.workspace.getConfiguration = origGetConfig;
+        provider.dispose();
+    }
 });
